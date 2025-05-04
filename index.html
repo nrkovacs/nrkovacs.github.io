@@ -976,10 +976,9 @@
             */
             // --- END DEBUG ---
 
-            if ((isMobile && jumpButtonPressed || !isMobile && jumpKeyDown) && jumpsRemaining <= 0 && playerVelocity.y < 0) {
-                // If floating ((on mobile, holding jump btn) OR (on desktop, holding jump key)) 
-                // AND after double jump AND moving down
-                // console.log("--- FLOATING ACTIVE ---"); // TODO: Remove after debugging
+            // Apply float if jump is held AND player is moving down
+            if ((isMobile && jumpButtonPressed || !isMobile && jumpKeyDown) && playerVelocity.y < 0) {
+                // console.log("--- FLOATING ACTIVE ---"); // Debug log
                 currentGravity *= floatFactor;
             }
             playerVelocity.y += currentGravity;
