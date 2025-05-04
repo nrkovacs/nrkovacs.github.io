@@ -447,6 +447,47 @@
              currentTimeDisplay.textContent = '0.00';
          }
 
+        // Function to create a procedural texture resembling Cinnamon Toast Crunch
+        function createCerealTexture() {
+            const canvas = document.createElement('canvas');
+            const size = 128; // Texture resolution
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Base color (light brown/beige)
+            ctx.fillStyle = '#D2B48C'; // Tan color
+            ctx.fillRect(0, 0, size, size);
+
+            // Add cinnamon swirls/speckles
+            ctx.fillStyle = 'rgba(139, 69, 19, 0.6)'; // SaddleBrown with some transparency
+            for (let i = 0; i < 80; i++) { // Number of speckles/swirl parts
+                const x = Math.random() * size;
+                const y = Math.random() * size;
+                const swirlSize = Math.random() * 5 + 2;
+                ctx.beginPath();
+                ctx.arc(x, y, swirlSize, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+             // Add sugary glitter (lighter speckles)
+             ctx.fillStyle = 'rgba(255, 250, 230, 0.7)'; // Lighter, almost white
+             for (let i = 0; i < 150; i++) { // More sugary speckles
+                 const x = Math.random() * size;
+                 const y = Math.random() * size;
+                 const speckleSize = Math.random() * 1.5 + 0.5;
+                 ctx.fillRect(x, y, speckleSize, speckleSize);
+             }
+
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.wrapS = THREE.RepeatWrapping;
+            texture.wrapT = THREE.RepeatWrapping;
+            texture.repeat.set(1, 1); // Adjust tiling if needed
+            return texture;
+        }
+
+
         function detectMobile() {
             // Check if the device is likely a mobile device
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
