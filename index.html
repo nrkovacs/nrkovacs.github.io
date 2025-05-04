@@ -607,7 +607,8 @@
 
             // Create Finish Platform
             finishPlatform = new THREE.Mesh(platformGeo, finishMat);
-            finishPlatform.position.set(0, platformY, -bowlRadius * 0.9); // Near negative Z edge
+            // Move further inside the bowl, similar to start platform
+            finishPlatform.position.set(0, platformY, -bowlRadius * 0.6); // Reduced multiplier from 0.9
             finishPlatform.userData.isPlatform = true;
             finishPlatform.userData.isFinish = true;
             scene.add(finishPlatform);
@@ -795,7 +796,9 @@
         }
 
         function updatePlatformMovement(deltaTime) {
-            const bowlRadiusSq = 9.8 * 9.8; // Use slightly inner radius squared for checks
+            // Use a smaller radius for boundary check to prevent clipping through the visual edge
+            const effectiveBowlRadius = 8.5; // Reduced from visual radius (around 9.8-10)
+            const bowlRadiusSq = effectiveBowlRadius * effectiveBowlRadius;
             const bobSpeed = 0.5;
             const bobAmount = 0.1;
 
