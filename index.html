@@ -763,31 +763,46 @@
             // For simplicity here, let's use a simpler geometry for the scoop base and add a depression manually or use a texture map.
             // Alternative: Use a shallow, scaled Sphere or Ellipsoid for the scoop part.
 
-            // Let's stick to a scaled Sphere but make it shallower and wider.
-            const scoopRadius = 1.0;
-            const scoopGeo = new THREE.SphereGeometry(scoopRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6); // Less than hemisphere
+            // Create an oval shape for the spoon scoop
+            const scoopShape = new THREE.Shape();
+            const scoopXRadius = scoopWidth / 2; // Use defined width
+            const scoopYRadius = scoopLength / 2; // Use defined length
+            const curveSegments = 32; // Smoothness of the ellipse
+
+            scoopShape.ellipse(
+                0, 0,             // Center x, y
+                scoopXRadius, scoopYRadius, // xRadius, yRadius
+                0, Math.PI * 2,   // StartAngle, EndAngle
+                false,            // Clockwise
+                0                 // Rotation
+            );
+
+            // Use ShapeGeometry for a flat scoop
+            const scoopGeo = new THREE.ShapeGeometry(scoopShape, curveSegments);
             const scoop = new THREE.Mesh(scoopGeo, silverMat);
-            scoop.scale.set(scoopWidth / (scoopRadius * 2), scoopDepth / scoopRadius, scoopLength / (scoopRadius * 2)); // Scale to desired dimensions
-            // Adjust rotation for better isometric view (less steep angle)
-            scoop.rotation.x = Math.PI * 0.45; // Was 0.55
-            scoop.position.set(0, -0.1, 0); // Center the scoop
+
+            // Rotate the flat scoop to lie horizontally and position it
+            scoop.rotation.x = -Math.PI / 2; // Rotate to be flat on XZ plane
+            scoop.position.set(0, 0, 0); // Position at the end of the handle (relative to group origin)
 
             spoon.add(handle);
             spoon.add(scoop);
+            // Note: We might need to add a slight curve or depth later if this looks too flat.
+            // For now, focusing on the oval shape.
             spoon.position.set(15, 5, 0); // Start off-screen
             scene.add(spoon);
 
-            // Bounding box for collision - Adjust size based on new scoop/handle
-            // Make it slightly larger than the visual scoop to be safe
-            const colliderWidth = scoopWidth * 1.2;
-            const colliderHeight = scoopDepth * 3; // Make taller to catch player better
-            const colliderLength = scoopLength * 1.2;
+            // Bounding box for collision - Adjust size based on new scoop shape
+            const colliderWidth = scoopWidth * 1.1; // Match oval width closely
+            const colliderHeight = 0.5; // Make it relatively flat but thick enough for collision
+            const colliderLength = scoopLength * 1.1; // Match oval length closely
             const spoonColliderGeo = new THREE.BoxGeometry(colliderWidth, colliderHeight, colliderLength);
             const spoonColliderMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, visible: debugMode });
             const spoonCollider = new THREE.Mesh(spoonColliderGeo, spoonColliderMat);
             spoonCollider.userData.isSpoon = true;
-            // Position collider centered on the scoop visual
-            spoonCollider.position.copy(scoop.position);
+            // Position collider centered on the new flat scoop visual
+            spoonCollider.position.copy(scoop.position); // Should be at (0,0,0) relative to spoon group now
+            spoonCollider.position.y += colliderHeight / 2; // Lift collider slightly so it's not below the visual scoop
             spoon.add(spoonCollider); // Add collider to the spoon group
             spoon.userData.collider = spoonCollider;
         }
