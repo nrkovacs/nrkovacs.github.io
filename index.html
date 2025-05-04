@@ -107,8 +107,8 @@
             position: absolute;
             bottom: 20px;
             left: 20px;
-            width: 100px;
-            height: 100px;
+            width: 150px; /* Increased size */
+            height: 150px; /* Increased size */
             background-color: rgba(128, 128, 128, 0.5);
             border-radius: 50%;
             display: none; /* Hidden by default */
@@ -116,8 +116,8 @@
         }
         #joystick-nub {
             position: absolute;
-            width: 40px;
-            height: 40px;
+            width: 60px; /* Increased size */
+            height: 60px; /* Increased size */
             background-color: rgba(200, 200, 200, 0.8);
             border-radius: 50%;
             top: 50%;
@@ -129,16 +129,16 @@
             position: absolute;
             bottom: 30px;
             right: 30px;
-            width: 80px;
-            height: 80px;
+            width: 100px; /* Increased size */
+            height: 100px; /* Increased size */
             background-color: rgba(0, 200, 0, 0.6);
             border-radius: 50%;
             display: none; /* Hidden by default */
             z-index: 101;
             text-align: center;
-            line-height: 80px;
+            line-height: 100px; /* Match height */
             color: white;
-            font-size: 20px;
+            font-size: 24px; /* Slightly larger text */
             font-family: monospace;
             font-weight: bold;
         }
@@ -237,7 +237,7 @@
         let joystickActive = false;
         let joystickCenter = { x: 0, y: 0 };
         let joystickCurrent = { x: 0, y: 0 };
-        let joystickRadius = 50; // Pixel radius of joystick area
+        let joystickRadius = 75; // Pixel radius of joystick area (half of new base width/height)
         let floatFactor = 0.5; // How much gravity is reduced when floating (0 = no gravity, 1 = normal)
 
         debugText.style.position = 'absolute';
@@ -757,37 +757,37 @@
         }
 
         const clock = new THREE.Clock(); // For deltaTime
+        let accumulator = 0;
+        const fixedTimeStep = 1 / 60; // Target 60 updates per second
 
-        function updateGameLogic() {
+        function updateGameLogic(deltaTime) {
              if (gameOver || gameWon) return;
 
-             const deltaTime = clock.getDelta();
+             // --- Player Movement ---
+             // Handle keyboard input if not using alternative controls
+             if (!isMobile) { // Desktop uses keyboard exclusively now
+                 moveDirection.set(0, 0, 0); // Reset direction
+                 if (keys['w'] || keys['arrowup']) {
+                     moveDirection.z -= 1;
+                 }
+                 if (keys['s'] || keys['arrowdown']) {
+                     moveDirection.z += 1;
+                 }
+                 if (keys['a'] || keys['arrowleft']) {
+                     moveDirection.x -= 1;
+                 }
+                 if (keys['d'] || keys['arrowright']) {
+                     moveDirection.x += 1;
+                 }
 
-            // --- Player Movement ---
-            // Handle keyboard input if not using alternative controls
-            if (!isMobile) { // Desktop uses keyboard exclusively now
-                moveDirection.set(0, 0, 0); // Reset direction
-                if (keys['w'] || keys['arrowup']) {
-                    moveDirection.z -= 1;
-                }
-                if (keys['s'] || keys['arrowdown']) {
-                    moveDirection.z += 1;
-                }
-                if (keys['a'] || keys['arrowleft']) {
-                    moveDirection.x -= 1;
-                }
-                if (keys['d'] || keys['arrowright']) {
-                    moveDirection.x += 1;
-                }
-
-                // Normalize diagonal movement
-                if (moveDirection.lengthSq() > 0) {
-                    moveDirection.normalize().multiplyScalar(playerSpeed);
-                }
-            }
-             // For mobile, moveDirection is updated by joystick handlers
-             // Ensure moveDirection is scaled by speed *after* joystick logic sets normalized direction
-             const finalMove = moveDirection.clone().multiplyScalar(playerSpeed);
+                 // Normalize diagonal movement
+                 if (moveDirection.lengthSq() > 0) {
+                     moveDirection.normalize().multiplyScalar(playerSpeed);
+                 }
+             }
+              // For mobile, moveDirection is updated by joystick handlers
+              // Ensure moveDirection is scaled by speed *after* joystick logic sets normalized direction
+              const finalMove = moveDirection.clone().multiplyScalar(playerSpeed);
 
 
              // Normalize the move direction (whether from keyboard or joystick)
@@ -1143,18 +1143,26 @@
             // Always request the next frame to keep the loop going, even if game over/won
             requestAnimationFrame(animate);
 
-            // Render the scene
+            // Calculate elapsed time since last frame
+            const deltaTime = clock.getDelta();
+            accumulator += deltaTime;
+
+            // Run fixed updates based on accumulated time
+            while (accumulator >= fixedTimeStep) {
+                 // Only update game logic if game is active
+                 if (!gameOver && !gameWon) {
+                     updateGameLogic(fixedTimeStep); // Use fixed step for logic updates
+                 }
+                 accumulator -= fixedTimeStep;
+            }
+
+            // Render the scene (happens every frame)
             renderer.render(scene, camera);
 
             // Update Timer Display if active
             if (timerActive) {
                 const elapsedTime = (performance.now() - startTime) / 1000;
                 currentTimeDisplay.textContent = elapsedTime.toFixed(2);
-            }
-
-            // Only update game logic if game is active
-            if (!gameOver && !gameWon) {
-                updateGameLogic();
             }
         }
 
