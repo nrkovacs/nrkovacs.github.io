@@ -159,6 +159,56 @@
             cursor: pointer; /* Indicate it's clickable */
             z-index: 105; /* Above other messages */
         }
+
+        /* --- Media Queries for Responsive Layout --- */
+
+        /* Phones in Portrait (e.g., iPhone Pro, Pixel Pro) */
+        @media (max-width: 767px) and (orientation: portrait) {
+            #joystick-base {
+                width: 120px; /* Slightly smaller than previous increase */
+                height: 120px;
+                bottom: 15px;
+                left: 15px;
+            }
+            #joystick-nub {
+                width: 50px;
+                height: 50px;
+            }
+            #jump-button {
+                width: 90px;
+                height: 90px;
+                bottom: 25px;
+                right: 25px;
+                line-height: 90px;
+                font-size: 20px;
+            }
+            #timer-info, #fastest-time-info {
+                font-size: 14px;
+            }
+            #highscore-info {
+                font-size: 12px;
+                padding: 8px;
+                max-width: 120px; /* Prevent excessive width */
+            }
+            #mobile-controls-info, #mouse-controls-info {
+                bottom: 160px; /* Adjust based on new joystick size */
+                font-size: 12px;
+            }
+            #win-message, #lose-message {
+                font-size: 36px;
+            }
+            #record-message {
+                 font-size: 28px;
+             }
+             #restart-button {
+                 padding: 12px 25px;
+                 font-size: 20px;
+             }
+        }
+
+        /* Tablets (Optional - adjust if needed, inherits desktop/base styles otherwise) */
+        /* @media (min-width: 768px) and (max-width: 1024px) { ... } */
+
     </style>
 </head>
 <body>
@@ -220,6 +270,9 @@
         const playerFeetOffset = 0.9; // Distance from player origin (torso center) to feet
         let shadowMesh; // For player shadow
         let raycaster = new THREE.Raycaster(); // For shadow positioning
+        let wasOnGround = false; // Track ground state from previous frame
+        const coyoteTimeDuration = 0.1; // Seconds player can jump after leaving platform
+        let coyoteTimeRemaining = 0;
 
         // Timer and High Score Variables
         let startTime = 0;
@@ -237,10 +290,10 @@
         let joystickActive = false;
         let joystickCenter = { x: 0, y: 0 };
         let joystickCurrent = { x: 0, y: 0 };
-        let joystickRadius = 75; // Pixel radius of joystick area (half of new base width/height)
+        // let joystickRadius = 75; // Pixel radius - Will be set dynamically
         let joystickTouchId = null; // ID of the touch controlling the joystick
         let jumpButtonTouchId = null; // ID of the touch controlling the jump button
-        let floatFactor = 0.5; // How much gravity is reduced when floating (0 = no gravity, 1 = normal)
+        let floatFactor = 0.3; // How much gravity is reduced when floating (0 = no gravity, 1 = normal) - Reduced for stronger float
 
         debugText.style.position = 'absolute';
         debugText.style.bottom = '10px';
@@ -632,8 +685,8 @@
              return box1.intersectsBox(box2);
         }
 
-        function checkPlatformCollision() {
-            onGround = false;
+        function checkPlatformCollision(wasOnGroundPrev) { // Pass previous frame's ground state
+            let landedThisFrame = false; // Local flag for this check
             const playerBox = new THREE.Box3().setFromObject(player); // Use overall player bounds for horizontal check
             const playerFeetY = player.position.y - playerFeetOffset; // Use exact feet position for vertical check
 
@@ -655,7 +708,9 @@
 
                         player.position.y = platformBox.max.y + playerFeetOffset; // Place player origin so feet are on platform
                         playerVelocity.y = 0;
-                        onGround = true;
+                        landedThisFrame = true; // Set local flag
+                        onGround = true; // Update global state
+                        coyoteTimeRemaining = 0; // Reset coyote time
                         jumpsRemaining = 2; // Reset double jump on landing
                         // Check if this is the finish platform
                         if (platform.userData.isFinish) {
@@ -665,6 +720,17 @@
                     }
                 }
             }
+
+            // If loop finishes and player hasn't landed on any platform
+            if (!landedThisFrame) {
+                if (wasOnGroundPrev) { // If player was on ground last frame, start coyote time
+                    coyoteTimeRemaining = coyoteTimeDuration;
+                }
+                onGround = false; // Update global state to not on ground
+            }
+
+            // Update global wasOnGround for the *next* frame
+             wasOnGround = onGround;
         }
 
         function updatePlatformMovement(deltaTime) {
@@ -773,29 +839,49 @@
         function updateGameLogic(deltaTime) {
              if (gameOver || gameWon) return;
 
+            const wasOnGroundPrev = wasOnGround; // Store state before physics update
+
+             // --- Coyote Time Countdown ---
+             if (coyoteTimeRemaining > 0) {
+                 coyoteTimeRemaining -= deltaTime;
+             }
+
              // --- Player Movement ---
              // Handle keyboard input if not using alternative controls
              if (!isMobile) { // Desktop uses keyboard exclusively now
-                 moveDirection.set(0, 0, 0); // Reset direction
+                 let rawInputX = 0;
+                 let rawInputZ = 0;
+
                  if (keys['w'] || keys['arrowup']) {
-                     moveDirection.z -= 1;
+                     rawInputZ -= 1;
                  }
                  if (keys['s'] || keys['arrowdown']) {
-                     moveDirection.z += 1;
+                     rawInputZ += 1;
                  }
                  if (keys['a'] || keys['arrowleft']) {
-                     moveDirection.x -= 1;
+                     rawInputX -= 1;
                  }
                  if (keys['d'] || keys['arrowright']) {
-                     moveDirection.x += 1;
+                     rawInputX += 1;
                  }
 
-                 // Normalize diagonal movement
-                 if (moveDirection.lengthSq() > 0) {
-                     moveDirection.normalize().multiplyScalar(playerSpeed);
+                 // Normalize raw input if needed
+                 const lengthSq = rawInputX * rawInputX + rawInputZ * rawInputZ;
+                 if (lengthSq > 0) {
+                     const length = Math.sqrt(lengthSq);
+                     const normX = rawInputX / length;
+                     const normZ = rawInputZ / length;
+
+                     // Rotate the normalized input vector by -45 degrees to match isometric view
+                     const factor = Math.sqrt(0.5);
+                     const worldX = (normX - normZ) * factor;
+                     const worldZ = (-normX - normZ) * factor; 
+                     moveDirection.set(worldX, 0, worldZ);
+                 } else {
+                     moveDirection.set(0, 0, 0); // No input, stop moving
                  }
              }
-              // For mobile, moveDirection is updated by joystick handlers
+             // For mobile, moveDirection is updated by joystick handlers
               // Ensure moveDirection is scaled by speed *after* joystick logic sets normalized direction
               const finalMove = moveDirection.clone().multiplyScalar(playerSpeed);
 
@@ -820,15 +906,26 @@
 
             // Apply Gravity (with potential float modification)
             let currentGravity = gravity;
-            if (isMobile && jumpButtonPressed && jumpsRemaining <= 0 && playerVelocity.y < 0) {
-                // If floating (on mobile, holding jump after double jump, moving down)
+
+            // --- DEBUG LOG for Floating --- // TODO: Remove after debugging
+            /*
+            if (isMobile) { // Only log on mobile
+                 console.log(`Float Check: jumpBtn=${jumpButtonPressed}, jumps=${jumpsRemaining}, velY=${playerVelocity.y.toFixed(3)}`);
+            }
+            */
+            // --- END DEBUG ---
+
+            if ((isMobile && jumpButtonPressed || !isMobile && jumpKeyDown) && jumpsRemaining <= 0 && playerVelocity.y < 0) {
+                // If floating ((on mobile, holding jump btn) OR (on desktop, holding jump key)) 
+                // AND after double jump AND moving down
+                // console.log("--- FLOATING ACTIVE ---"); // TODO: Remove after debugging
                 currentGravity *= floatFactor;
             }
             playerVelocity.y += currentGravity;
 
             player.position.y += playerVelocity.y;
 
-             checkPlatformCollision(); // Check for landing and reset jumps
+             checkPlatformCollision(wasOnGroundPrev); // Check for landing and reset jumps
 
             // Prevent falling through floor (basic check)
             if (player.position.y - playerFeetOffset < milk.position.y - 1) { // Well below milk?
@@ -916,6 +1013,8 @@
             // Reset jump state
             jumpsRemaining = 2; // Give back double jump
             jumpKeyDown = false;
+            coyoteTimeRemaining = 0; // Reset coyote timer
+            wasOnGround = false; // Reset previous ground state tracker
 
             // Reset game state
             gameOver = false;
@@ -951,11 +1050,12 @@
 
 
         function playerJump() {
-             if (jumpsRemaining > 0) {
-                 playerVelocity.y = jumpStrength;
-                 jumpsRemaining--;
-                 onGround = false; // Player is definitely airborne after any jump
-            }
+            // Assumes checks for jump availability (onGround, coyoteTime, jumpsRemaining)
+            // are done *before* calling this function.
+            playerVelocity.y = jumpStrength;
+            jumpsRemaining--; 
+            onGround = false; // Player is definitely airborne after any jump
+            coyoteTimeRemaining = 0; // Consumed coyote time if used
         }
 
         function adjustCameraForMobile() {
@@ -963,14 +1063,17 @@
             let viewSize = d;
 
             if (isMobile) {
-                // If portrait or square on mobile, zoom in (reduce view size)
-                if (aspect <= 1) {
-                    viewSize = d * 0.75; // Zoom in by making view smaller
+                // Adjust zoom based on aspect ratio for mobile
+                if (aspect < 0.6) { // Very tall/narrow (e.g., modern phones portrait)
+                    viewSize = d * 0.65; 
+                } else if (aspect < 1) { // Portrait or square
+                    viewSize = d * 0.8;
+                } else { // Landscape
+                    viewSize = d * 0.85; // Zoom in slightly for landscape mobile
                 }
                  // Optional: Slightly zoom out for landscape mobile if needed
                  // else {
-                 //    viewSize = d * 1.1; 
-                 // }
+                 //    viewSize = d * 1.1;
             }
 
             camera.left = -viewSize * aspect;
@@ -994,8 +1097,10 @@
 
             // Handle jump key press - only trigger once per press
             if ((key === ' ' || key === 'shift') && !jumpKeyDown) {
-                jumpKeyDown = true;
-                playerJump();
+                if (jumpsRemaining > 0) { // Simplified check: Can we jump at all?
+                    jumpKeyDown = true;
+                    playerJump();
+                }
             }
 
             // If any movement key is pressed, disable mouse controls
@@ -1058,6 +1163,10 @@
             const joystickRect = joystickBase.getBoundingClientRect();
             const jumpRect = jumpButton.getBoundingClientRect();
 
+            // Determine joystick radius based on current base size (affected by CSS media queries)
+            // Need to access computed style or rect, but rect is simpler here
+            const currentJoystickRadius = joystickRect.width / 2;
+
             for (let i = 0; i < event.changedTouches.length; i++) {
                 const touch = event.changedTouches[i];
 
@@ -1067,16 +1176,18 @@
                     joystickActive = true;
                     joystickCenter.x = joystickRect.left + joystickRect.width / 2;
                     joystickCenter.y = joystickRect.top + joystickRect.height / 2;
-                    updateJoystickPosition(touch.clientX, touch.clientY);
+                    updateJoystickPosition(touch.clientX, touch.clientY, currentJoystickRadius); // Pass radius
                     // console.log("Joystick touch started:", joystickTouchId);
                 }
                 // Check if touch is for jump button (and jump isn't already controlled)
                 else if (jumpButtonTouchId === null && isPointInsideRect(touch.clientX, touch.clientY, jumpRect)) {
-                    jumpButtonTouchId = touch.identifier;
-                    jumpButtonPressed = true;
-                    playerJump(); // Trigger jump
-                    jumpButton.style.backgroundColor = 'rgba(0, 150, 0, 0.8)'; // Visual feedback
-                    // console.log("Jump touch started:", jumpButtonTouchId);
+                    if (jumpsRemaining > 0) { // Simplified check: Can we jump at all?
+                        jumpButtonTouchId = touch.identifier;
+                        jumpButtonPressed = true;
+                        playerJump(); // Trigger jump
+                        jumpButton.style.backgroundColor = 'rgba(0, 150, 0, 0.8)'; // Visual feedback
+                        // console.log("Jump touch started:", jumpButtonTouchId);
+                    }
                 }
             }
         }
@@ -1090,7 +1201,9 @@
                 // If this touch is the one controlling the joystick, update it and prevent default
                 if (touch.identifier === joystickTouchId) {
                     event.preventDefault(); // Prevent scrolling only when joystick is moved
-                    updateJoystickPosition(touch.clientX, touch.clientY);
+                    // Need the radius here too! Get it from the element again.
+                    const currentJoystickRadius = joystickBase.getBoundingClientRect().width / 2;
+                    updateJoystickPosition(touch.clientX, touch.clientY, currentJoystickRadius); // Pass radius
                     // console.log("Joystick touch moved:", joystickTouchId);
                     break; // Found the joystick touch, no need to check others in this loop
                 }
@@ -1119,16 +1232,16 @@
             }
         }
 
-        function updateJoystickPosition(clientX, clientY) {
+        function updateJoystickPosition(clientX, clientY, radius) {
             let dx = clientX - joystickCenter.x;
             let dy = clientY - joystickCenter.y;
             let distance = Math.sqrt(dx * dx + dy * dy);
 
             // Clamp the nub position within the base radius
-            if (distance > joystickRadius) {
-                dx *= joystickRadius / distance;
-                dy *= joystickRadius / distance;
-                distance = joystickRadius;
+            if (distance > radius) {
+                dx *= radius / distance;
+                dy *= radius / distance;
+                distance = radius;
             }
 
             // Update nub visual position (relative to base center)
@@ -1138,8 +1251,8 @@
             // Update game move direction based on joystick vector
             if (distance > 5) { // Dead zone
                 // Convert joystick coords (dx, dy) to normalized screen coords (jx, jy) with Y pointing up
-                const jx = dx / joystickRadius;
-                const jy = -dy / joystickRadius; // Invert dy because screen Y is down
+                const jx = dx / radius;
+                const jy = -dy / radius; // Invert dy because screen Y is down
 
                 // Rotate the input vector by -45 degrees to match isometric view
                 // worldX = (jx - jy) / sqrt(2)
