@@ -614,13 +614,20 @@
             scene.add(finishPlatform);
             platforms.push(finishPlatform); // Add to general platforms for collision
 
-            // Randomly place intermediate platforms
+            // Randomly place intermediate platforms (Cereal Pieces)
             const numPlatforms = 18; // Increased cereal count by 50%
-            const platformBaseMaterial = new THREE.MeshLambertMaterial({ color: 0xd2691e });
+            // Create the cereal texture once
+            const cerealTexture = createCerealTexture();
+            // Use the texture in the material
+            const platformBaseMaterial = new THREE.MeshLambertMaterial({ map: cerealTexture });
+            // Make geometry thinner for cereal pieces
+            const cerealGeo = new THREE.BoxGeometry(1.5, 0.1, 1.5); // Thinner height (was 0.2)
+
             const safeZone = 2.5; // Define the safe zone radius around start/finish platforms
 
             for (let i = 0; i < numPlatforms; i++) {
-                const platform = new THREE.Mesh(platformGeo.clone(), platformBaseMaterial.clone());
+                // Use the new cereal geometry and the textured material
+                const platform = new THREE.Mesh(cerealGeo.clone(), platformBaseMaterial); // No need to clone material if it's shared
                 let placed = false;
                 while (!placed) {
                     const angle = Math.random() * Math.PI * 2;
