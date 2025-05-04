@@ -598,8 +598,8 @@
 
             // Create Start Platform
             startPlatform = new THREE.Mesh(platformGeo, startMat);
-            // Move slightly further from the edge to ensure visibility with new bowl shape
-            startPlatform.position.set(0, platformY, bowlRadius * 0.75);
+            // Move further inside the bowl to prevent clipping
+            startPlatform.position.set(0, platformY, bowlRadius * 0.6); // Reduced multiplier from 0.75
             startPlatform.userData.isPlatform = true;
             startPlatform.userData.isStart = true;
             scene.add(startPlatform);
