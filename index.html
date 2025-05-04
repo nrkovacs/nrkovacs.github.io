@@ -541,11 +541,35 @@
         }
 
         function createBowl() {
-            // A large, shallow cylinder for the bowl
-            const bowlGeo = new THREE.CylinderGeometry(10, 11, 3, 32, 1, true); // radiusTop, radiusBottom, height, radialSegments, heightSegments, openEnded
-            const bowlMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0, side: THREE.DoubleSide });
+            // Use LatheGeometry for a curved bowl shape
+            const points = [];
+            const segments = 10;
+            const bowlHeight = 4; // Make it a bit deeper
+            const topRadius = 10;
+            const bottomRadius = 7;
+            const curveDepth = 2; // How much it curves inwards at the bottom
+
+            // Create points for the lathe profile (half cross-section)
+            points.push(new THREE.Vector2(bottomRadius - curveDepth, -bowlHeight / 2)); // Inner bottom corner
+            for (let i = 1; i <= segments; i++) {
+                const t = i / segments;
+                const angle = Math.PI / 2 * t; // Curve from bottom up
+                const x = bottomRadius + curveDepth * Math.cos(angle);
+                const y = -bowlHeight / 2 + (bowlHeight / 2 + 0.5) * Math.sin(angle); // +0.5 for slight lip
+                points.push(new THREE.Vector2(x, y));
+            }
+             points.push(new THREE.Vector2(topRadius, bowlHeight / 2)); // Top outer edge
+             points.push(new THREE.Vector2(topRadius + 0.2, bowlHeight / 2 + 0.1)); // Small lip outward
+             points.push(new THREE.Vector2(topRadius + 0.2, bowlHeight / 2 + 0.3)); // Lip top edge
+             points.push(new THREE.Vector2(topRadius - 0.3, bowlHeight / 2 + 0.3)); // Lip inner top edge
+             points.push(new THREE.Vector2(topRadius - 0.5, bowlHeight / 2)); // Inner lip edge sloping down
+
+
+            const bowlGeo = new THREE.LatheGeometry(points, 32); // Generate geometry by rotating points
+            const bowlMat = new THREE.MeshLambertMaterial({ color: 0xe0e0e0, side: THREE.DoubleSide }); // Slightly darker grey
             bowl = new THREE.Mesh(bowlGeo, bowlMat);
-            bowl.position.y = 0; // Bottom of the bowl at y=0
+            // Adjust position so the *bottom* of the bowl is near y=0, accounting for the new height
+            bowl.position.y = 0.5; // Adjust as needed based on profile
             scene.add(bowl);
         }
 
@@ -574,7 +598,8 @@
 
             // Create Start Platform
             startPlatform = new THREE.Mesh(platformGeo, startMat);
-            startPlatform.position.set(0, platformY, bowlRadius * 0.9); // Near positive Z edge
+            // Move slightly further from the edge to ensure visibility with new bowl shape
+            startPlatform.position.set(0, platformY, bowlRadius * 0.75);
             startPlatform.userData.isPlatform = true;
             startPlatform.userData.isStart = true;
             scene.add(startPlatform);
@@ -632,45 +657,72 @@
         }
 
         function createSpoon() {
-             // Composite object for the spoon
             spoon = new THREE.Group();
+            const silverMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.8, roughness: 0.3 }); // More metallic look
 
-            const handleGeo = new THREE.BoxGeometry(0.5, 0.2, 6); // Long handle
-            const handleMat = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 }); // Silver
-            const handle = new THREE.Mesh(handleGeo, handleMat);
-            handle.position.z = -3; // Offset handle relative to the scoop center
+            // Handle - Use CapsuleGeometry for rounded ends
+            const handleLength = 5.5;
+            const handleRadius = 0.15;
+            const handleGeo = new THREE.CapsuleGeometry(handleRadius, handleLength, 8, 16);
+            const handle = new THREE.Mesh(handleGeo, silverMat);
+            handle.rotation.x = Math.PI / 2; // Rotate to lie flat along Z
+            handle.position.set(0, 0, -(handleLength / 2 + 0.5)); // Position relative to scoop center
 
-             // Use a scaled hemisphere for a better scoop shape
-             const scoopRadius = 1.4;
-             const scoopGeo = new THREE.SphereGeometry(
-                 scoopRadius, // radius
-                 32, // widthSegments
-                 16, // heightSegments
-                 0, // phiStart
-                 Math.PI * 2, // phiLength
-                 0, // thetaStart
-                 Math.PI / 2 // thetaLength (creates hemisphere)
-             );
-             const scoopMat = new THREE.MeshLambertMaterial({ color: 0xd0d0d0, side: THREE.DoubleSide });
-             const scoop = new THREE.Mesh(scoopGeo, scoopMat);
-             scoop.rotation.x = Math.PI / 2; // Rotate to face upwards
-             scoop.scale.set(1.2, 1, 1.6); // Scale X and Z to make it oval/elongated
-             scoop.position.set(0, -0.1, -0.3); // Adjust position slightly relative to handle
+            // Scoop - Use ShapeGeometry or ExtrudeGeometry for a better shape
+            const scoopShape = new THREE.Shape();
+            const scoopWidth = 1.2;
+            const scoopLength = 1.8;
+            const scoopDepth = 0.4; // How deep the scoop depression is
 
-             spoon.add(handle);
-             spoon.add(scoop);
-             spoon.position.set(15, 5, 0); // Start off-screen
+            // Define the 2D outline of the spoon scoop
+            scoopShape.moveTo(-scoopWidth / 2, -scoopLength / 2);
+            scoopShape.quadraticCurveTo(0, -scoopLength * 0.7, scoopWidth / 2, -scoopLength / 2); // Bottom curve
+            scoopShape.lineTo(scoopWidth * 0.6, scoopLength / 2 * 0.8); // Taper towards handle
+            scoopShape.quadraticCurveTo(0, scoopLength / 2, -scoopWidth * 0.6, scoopLength / 2 * 0.8); // Top curve near handle
+            scoopShape.lineTo(-scoopWidth / 2, -scoopLength / 2); // Close shape
 
-             scene.add(spoon);
+            // Extrude the shape slightly to give it thickness and a depression
+            const extrudeSettings = {
+                steps: 1,
+                depth: 0.1, // Thickness of the metal
+                bevelEnabled: true,
+                bevelThickness: 0.05,
+                bevelSize: 0.05,
+                bevelOffset: 0,
+                bevelSegments: 3
+                // curveSegments could be added for smoother curves if needed
+            };
 
-             // Bounding box for collision
-             const spoonColliderGeo = new THREE.BoxGeometry(3, 1, 3); // Use scoop dimensions approx
-             const spoonColliderMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, visible: debugMode }); // Invisible collider unless debugging
-             const spoonCollider = new THREE.Mesh(spoonColliderGeo, spoonColliderMat);
-             spoonCollider.userData.isSpoon = true; // Tag for collision
-             spoonCollider.position.copy(scoop.position); // Match scoop position
-             spoon.add(spoonCollider); // Add collider to the spoon group
-             spoon.userData.collider = spoonCollider; // Reference for easy access
+            // We might need a different approach for the depression, maybe CSG or modeling software import.
+            // For simplicity here, let's use a simpler geometry for the scoop base and add a depression manually or use a texture map.
+            // Alternative: Use a shallow, scaled Sphere or Ellipsoid for the scoop part.
+
+            // Let's stick to a scaled Sphere but make it shallower and wider.
+            const scoopRadius = 1.0;
+            const scoopGeo = new THREE.SphereGeometry(scoopRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6); // Less than hemisphere
+            const scoop = new THREE.Mesh(scoopGeo, silverMat);
+            scoop.scale.set(scoopWidth / (scoopRadius * 2), scoopDepth / scoopRadius, scoopLength / (scoopRadius * 2)); // Scale to desired dimensions
+            scoop.rotation.x = Math.PI * 0.55; // Tilt slightly more than flat
+            scoop.position.set(0, -0.1, 0); // Center the scoop
+
+            spoon.add(handle);
+            spoon.add(scoop);
+            spoon.position.set(15, 5, 0); // Start off-screen
+            scene.add(spoon);
+
+            // Bounding box for collision - Adjust size based on new scoop/handle
+            // Make it slightly larger than the visual scoop to be safe
+            const colliderWidth = scoopWidth * 1.2;
+            const colliderHeight = scoopDepth * 3; // Make taller to catch player better
+            const colliderLength = scoopLength * 1.2;
+            const spoonColliderGeo = new THREE.BoxGeometry(colliderWidth, colliderHeight, colliderLength);
+            const spoonColliderMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, visible: debugMode });
+            const spoonCollider = new THREE.Mesh(spoonColliderGeo, spoonColliderMat);
+            spoonCollider.userData.isSpoon = true;
+            // Position collider centered on the scoop visual
+            spoonCollider.position.copy(scoop.position);
+            spoon.add(spoonCollider); // Add collider to the spoon group
+            spoon.userData.collider = spoonCollider;
         }
 
         // Collision Detection (AABB)
@@ -689,9 +741,13 @@
         }
 
         function checkPlatformCollision(wasOnGroundPrev) { // Pass previous frame's ground state
-            let landedThisFrame = false; // Local flag for this check
-            const playerBox = new THREE.Box3().setFromObject(player); // Use overall player bounds for horizontal check
-            const playerFeetY = player.position.y - playerFeetOffset; // Use exact feet position for vertical check
+            let landedThisFrame = false;
+            const playerBox = new THREE.Box3().setFromObject(player);
+            // Store previous Y position before applying velocity/gravity for collision check
+            const previousPlayerFeetY = player.position.y - playerFeetOffset;
+            // Apply vertical velocity *before* checking collision for this frame
+            player.position.y += playerVelocity.y;
+            const currentPlayerFeetY = player.position.y - playerFeetOffset;
 
             for (let i = 0; i < platforms.length; i++) {
                 const platform = platforms[i];
@@ -703,16 +759,18 @@
                     playerBox.max.z > platformBox.min.z &&
                     playerBox.min.z < platformBox.max.z) {
 
-                    // Check if player is falling onto the platform
-                    // Feet must be slightly above platform top, and velocity must be downward
-                    if (playerVelocity.y <= 0 &&
-                        playerFeetY >= platformBox.max.y - 0.05 && // within 0.05 tolerance *above*
-                        playerFeetY <= platformBox.max.y + 0.15) { // allow slightly *below* if moving fast
+                    // Improved Collision Check:
+                    // Check if player was above the platform last frame, is now at or below it,
+                    // and is moving downwards.
+                    if (playerVelocity.y <= 0 && // Moving down or still
+                        previousPlayerFeetY >= platformBox.max.y - 0.01 && // Was above or very close in previous step
+                        currentPlayerFeetY <= platformBox.max.y + 0.01) { // Is now at or below (with tolerance)
 
-                        player.position.y = platformBox.max.y + playerFeetOffset; // Place player origin so feet are on platform
-                        playerVelocity.y = 0;
-                        landedThisFrame = true; // Set local flag
-                        onGround = true; // Update global state
+                        // Collision detected!
+                        player.position.y = platformBox.max.y + playerFeetOffset; // Correct position to be exactly on top
+                        playerVelocity.y = 0; // Stop vertical movement
+                        landedThisFrame = true;
+                        onGround = true;
                         coyoteTimeRemaining = 0; // Reset coyote time
                         jumpsRemaining = 2; // Reset double jump on landing
                         // Check if this is the finish platform
@@ -926,11 +984,12 @@
             }
             playerVelocity.y += currentGravity;
 
-            player.position.y += playerVelocity.y;
+            // Vertical position update is now done *before* checkPlatformCollision
+            // player.position.y += playerVelocity.y; // REMOVED FROM HERE
 
-             checkPlatformCollision(wasOnGroundPrev); // Check for landing and reset jumps
+            checkPlatformCollision(wasOnGroundPrev); // Check for landing and reset jumps
 
-            // Prevent falling through floor (basic check)
+            // Prevent falling through floor (basic check) - Check current position after collision correction
             if (player.position.y - playerFeetOffset < milk.position.y - 1) { // Well below milk?
                  if (!gameOver) {
                     console.warn("Player fell through floor unexpectedly.");
