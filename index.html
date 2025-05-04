@@ -238,6 +238,8 @@
         let joystickCenter = { x: 0, y: 0 };
         let joystickCurrent = { x: 0, y: 0 };
         let joystickRadius = 75; // Pixel radius of joystick area (half of new base width/height)
+        let joystickTouchId = null; // ID of the touch controlling the joystick
+        let jumpButtonTouchId = null; // ID of the touch controlling the jump button
         let floatFactor = 0.5; // How much gravity is reduced when floating (0 = no gravity, 1 = normal)
 
         debugText.style.position = 'absolute';
@@ -311,6 +313,7 @@
                 // Show and setup joystick/button listeners
                 joystickBase.style.display = 'block';
                 jumpButton.style.display = 'block';
+                /* Remove individual listeners
                 joystickBase.addEventListener('touchstart', handleJoystickStart, false);
                 joystickBase.addEventListener('touchmove', handleJoystickMove, { passive: false });
                 joystickBase.addEventListener('touchend', handleJoystickEnd, false);
@@ -318,6 +321,13 @@
                 jumpButton.addEventListener('touchend', handleJumpButtonUp, false);
                 // Add global touchend listener to catch joystick release if finger slides off
                 window.addEventListener('touchend', handleGlobalTouchEnd, false);
+                */
+
+                // Add global listeners for multi-touch
+                window.addEventListener('touchstart', handleTouchStart, false);
+                window.addEventListener('touchmove', handleTouchMove, { passive: false });
+                window.addEventListener('touchend', handleTouchEnd, false);
+                window.addEventListener('touchcancel', handleTouchEnd, false); // Handle cancellation too
 
                 // Add restart button listener for mobile
                 restartButton.addEventListener('touchstart', () => {
@@ -1039,105 +1049,118 @@
 
         // --- Mobile Control Handlers ---
 
-        function handleJoystickStart(event) {
+        function isPointInsideRect(x, y, rect) {
+            return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+        }
+
+        function handleTouchStart(event) {
             event.preventDefault();
-            if (event.touches.length > 0) {
-                joystickActive = true;
-                const touch = event.touches[0];
-                const rect = joystickBase.getBoundingClientRect();
-                joystickCenter.x = rect.left + rect.width / 2;
-                joystickCenter.y = rect.top + rect.height / 2;
-                updateJoystickPosition(touch.clientX, touch.clientY);
+            const joystickRect = joystickBase.getBoundingClientRect();
+            const jumpRect = jumpButton.getBoundingClientRect();
+
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const touch = event.changedTouches[i];
+
+                // Check if touch is for joystick (and joystick isn't already controlled)
+                if (joystickTouchId === null && isPointInsideRect(touch.clientX, touch.clientY, joystickRect)) {
+                    joystickTouchId = touch.identifier;
+                    joystickActive = true;
+                    joystickCenter.x = joystickRect.left + joystickRect.width / 2;
+                    joystickCenter.y = joystickRect.top + joystickRect.height / 2;
+                    updateJoystickPosition(touch.clientX, touch.clientY);
+                    // console.log("Joystick touch started:", joystickTouchId);
+                }
+                // Check if touch is for jump button (and jump isn't already controlled)
+                else if (jumpButtonTouchId === null && isPointInsideRect(touch.clientX, touch.clientY, jumpRect)) {
+                    jumpButtonTouchId = touch.identifier;
+                    jumpButtonPressed = true;
+                    playerJump(); // Trigger jump
+                    jumpButton.style.backgroundColor = 'rgba(0, 150, 0, 0.8)'; // Visual feedback
+                    // console.log("Jump touch started:", jumpButtonTouchId);
+                }
             }
         }
 
-        function handleJoystickMove(event) {
-            event.preventDefault(); // Prevent scrolling
-            if (joystickActive && event.touches.length > 0) {
-                const touch = event.touches[0];
-                updateJoystickPosition(touch.clientX, touch.clientY);
+        function handleTouchMove(event) {
+            // event.preventDefault(); // Prevent scrolling - Moved inside condition
+
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const touch = event.changedTouches[i];
+
+                // If this touch is the one controlling the joystick, update it and prevent default
+                if (touch.identifier === joystickTouchId) {
+                    event.preventDefault(); // Prevent scrolling only when joystick is moved
+                    updateJoystickPosition(touch.clientX, touch.clientY);
+                    // console.log("Joystick touch moved:", joystickTouchId);
+                    break; // Found the joystick touch, no need to check others in this loop
+                }
             }
         }
 
-        function handleJoystickEnd(event) {
+        function handleTouchEnd(event) {
             event.preventDefault();
-            resetJoystick();
+
+            for (let i = 0; i < event.changedTouches.length; i++) {
+                const touch = event.changedTouches[i];
+
+                // Check if the ending touch was controlling the joystick
+                if (touch.identifier === joystickTouchId) {
+                    resetJoystick();
+                    joystickTouchId = null;
+                    // console.log("Joystick touch ended:", touch.identifier);
+                }
+                // Check if the ending touch was controlling the jump button
+                else if (touch.identifier === jumpButtonTouchId) {
+                    jumpButtonPressed = false;
+                    jumpButtonTouchId = null;
+                    jumpButton.style.backgroundColor = 'rgba(0, 200, 0, 0.6)'; // Restore visual
+                    // console.log("Jump touch ended:", touch.identifier);
+                }
+            }
         }
 
-         function handleGlobalTouchEnd(event) {
-             // Check if the touch ending was the one controlling the joystick
-             // This is a simplified check; a more robust solution might track touch IDs
-             if (joystickActive) {
-                 // Check if the touch ending is outside the joystick base
-                  let isJoystickTouch = false;
-                 for (let i = 0; i < event.changedTouches.length; i++) {
-                     const touch = event.changedTouches[i];
-                      const rect = joystickBase.getBoundingClientRect();
-                     if (touch.target === joystickBase) {
-                         isJoystickTouch = true;
-                         break;
-                     }
-                 }
-                 // If no touch ending *on* the joystick was registered, assume finger slid off
-                 if (!isJoystickTouch) {
-                     resetJoystick();
-                 }
-             }
-         }
+        function updateJoystickPosition(clientX, clientY) {
+            let dx = clientX - joystickCenter.x;
+            let dy = clientY - joystickCenter.y;
+            let distance = Math.sqrt(dx * dx + dy * dy);
 
-         function updateJoystickPosition(clientX, clientY) {
-             let dx = clientX - joystickCenter.x;
-             let dy = clientY - joystickCenter.y;
-             let distance = Math.sqrt(dx * dx + dy * dy);
+            // Clamp the nub position within the base radius
+            if (distance > joystickRadius) {
+                dx *= joystickRadius / distance;
+                dy *= joystickRadius / distance;
+                distance = joystickRadius;
+            }
 
-             // Clamp the nub position within the base radius
-             if (distance > joystickRadius) {
-                 dx *= joystickRadius / distance;
-                 dy *= joystickRadius / distance;
-                 distance = joystickRadius;
-             }
+            // Update nub visual position (relative to base center)
+            joystickNub.style.left = `calc(50% + ${dx}px)`;
+            joystickNub.style.top = `calc(50% + ${dy}px)`;
 
-             // Update nub visual position (relative to base center)
-             joystickNub.style.left = `calc(50% + ${dx}px)`;
-             joystickNub.style.top = `calc(50% + ${dy}px)`;
+            // Update game move direction based on joystick vector
+            if (distance > 5) { // Dead zone
+                // Convert joystick coords (dx, dy) to normalized screen coords (jx, jy) with Y pointing up
+                const jx = dx / joystickRadius;
+                const jy = -dy / joystickRadius; // Invert dy because screen Y is down
 
-             // Update game move direction based on joystick vector
-             if (distance > 5) { // Dead zone
-                 // Convert joystick coords (dx, dy) to normalized screen coords (jx, jy) with Y pointing up
-                 const jx = dx / joystickRadius;
-                 const jy = -dy / joystickRadius; // Invert dy because screen Y is down
+                // Rotate the input vector by -45 degrees to match isometric view
+                // worldX = (jx - jy) / sqrt(2)
+                // worldZ = (-jx - jy) / sqrt(2)
+                const factor = Math.sqrt(0.5);
+                const worldX = (jx - jy) * factor;
+                const worldZ = (-jx - jy) * factor;
 
-                 // Rotate the input vector by -45 degrees to match isometric view
-                 // worldX = (jx - jy) / sqrt(2)
-                 // worldZ = (-jx - jy) / sqrt(2)
-                 const factor = Math.sqrt(0.5);
-                 const worldX = (jx - jy) * factor;
-                 const worldZ = (-jx - jy) * factor;
+                moveDirection.set(worldX, 0, worldZ);
+                // Normalization happens later before applying speed
+            } else {
+                moveDirection.set(0, 0, 0);
+            }
+        }
 
-                 moveDirection.set(worldX, 0, worldZ);
-                 // Normalization happens later before applying speed
-             } else {
-                 moveDirection.set(0, 0, 0);
-             }
-         }
-
-         function resetJoystick() {
-             joystickActive = false;
-             joystickNub.style.left = '50%';
-             joystickNub.style.top = '50%';
-             moveDirection.set(0, 0, 0); // Stop movement
-         }
-
-         function handleJumpButtonDown(event) {
-             event.preventDefault();
-             jumpButtonPressed = true;
-             playerJump(); // Trigger jump immediately
-         }
-
-         function handleJumpButtonUp(event) {
-             event.preventDefault();
-             jumpButtonPressed = false;
-         }
+        function resetJoystick() {
+            joystickActive = false;
+            joystickNub.style.left = '50%';
+            joystickNub.style.top = '50%';
+            moveDirection.set(0, 0, 0); // Stop movement
+        }
 
         function animate() {
             // Always request the next frame to keep the loop going, even if game over/won
