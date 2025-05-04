@@ -142,12 +142,29 @@
             font-family: monospace;
             font-weight: bold;
         }
+        #restart-button {
+            position: absolute;
+            top: 65%; /* Position below win/lose message */
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            font-size: 24px;
+            color: white;
+            background-color: rgba(200, 0, 0, 0.8); /* Red background */
+            border: none;
+            border-radius: 8px;
+            display: none; /* Hidden by default */
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer; /* Indicate it's clickable */
+            z-index: 105; /* Above other messages */
+        }
     </style>
 </head>
 <body>
     <div id="info">Crunch of Champions</div>
-    <div id="win-message">You Won!<br><small>Press R to restart</small></div>
-    <div id="lose-message">You Lost!<br><small>Press R to restart</small></div>
+    <div id="win-message">You Won!</div>
+    <div id="lose-message">You Lost!</div>
     <div id="mobile-controls-info">
         Left: Joystick<br>
         Right: Jump/Float
@@ -175,6 +192,7 @@
     </div>
     <div id="jump-button">JUMP</div>
     <div id="debug-text"></div>
+    <button id="restart-button">Restart</button>
     <script type="importmap">
         {
             "imports": {
@@ -234,9 +252,10 @@
         const currentTimeDisplay = document.getElementById('current-time');
         const fastestTimeDisplay = document.getElementById('fastest-time');
         const highScoreListDisplay = document.getElementById('highscore-list');
+        const restartButton = document.getElementById('restart-button');
 
-        const aspect = window.innerWidth / window.innerHeight;
-        const d = 20; // Camera view dimensions
+        let aspect = window.innerWidth / window.innerHeight;
+        let d = 20; // Base camera view dimension
 
         const joystickBase = document.getElementById('joystick-base');
         const joystickNub = document.getElementById('joystick-nub');
@@ -264,6 +283,9 @@
             const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
             directionalLight.position.set(5, 10, 7.5);
             scene.add(directionalLight);
+
+            // Adjust camera for mobile potentially
+            adjustCameraForMobile();
 
             // Game Elements
             createBowl();
@@ -293,6 +315,13 @@
                 jumpButton.addEventListener('touchend', handleJumpButtonUp, false);
                 // Add global touchend listener to catch joystick release if finger slides off
                 window.addEventListener('touchend', handleGlobalTouchEnd, false);
+
+                // Add restart button listener for mobile
+                restartButton.addEventListener('touchstart', () => {
+                    if (gameOver || gameWon) {
+                        restartGame();
+                    }
+                }, false);
             } else {
                 document.getElementById('mobile-controls-info').style.display = 'none';
                 document.getElementById('mouse-controls-info').style.display = 'block';
@@ -331,6 +360,12 @@
              winMessage.style.display = 'none';
              loseMessage.style.display = 'none';
              recordMessage.style.display = 'none';
+             restartButton.style.display = 'none'; // Hide restart button
+             moveDirection.set(0, 0, 0); // Reset move direction
+             if (isMobile) {
+                 resetJoystick();
+                 jumpButtonPressed = false;
+             }
 
              // Reset spoon position
              if (spoon) {
@@ -669,6 +704,7 @@
 
                 winMessage.style.display = 'block';
                 checkAndRecordHighScore(finalTime);
+                if (isMobile) restartButton.style.display = 'block'; // Show restart button on mobile
                  // Optionally stop animation or further updates
                  // cancelAnimationFrame(animate); // Could uncomment if we stop animate loop
             }
@@ -689,6 +725,7 @@
             if (playerBottomY < milkTopY) {
                  gameOver = true;
                  loseMessage.style.display = 'block';
+                 if (isMobile) restartButton.style.display = 'block'; // Show restart button on mobile
                  return true;
             }
 
@@ -696,6 +733,7 @@
             if (spoon && spoon.userData.collider && checkCollision(player, spoon.userData.collider)) {
                  gameOver = true;
                  loseMessage.style.display = 'block';
+                 if (isMobile) restartButton.style.display = 'block'; // Show restart button on mobile
                  return true;
             }
             return false;
@@ -762,12 +800,11 @@
 
             // Prevent falling through floor (basic check)
             if (player.position.y - playerFeetOffset < milk.position.y - 1) { // Well below milk?
-                 // This should normally trigger lose condition, but as a safety:
-                 // Directly call lose condition handler? Or reset position?
                  if (!gameOver) {
                     console.warn("Player fell through floor unexpectedly.");
                     gameOver = true; // Trigger game over state
                     loseMessage.style.display = 'block';
+                    if (isMobile) restartButton.style.display = 'block'; // Show restart button on mobile
                     timerActive = false;
                  }
             }
@@ -818,6 +855,7 @@
             winMessage.style.display = 'none';
             loseMessage.style.display = 'none';
             recordMessage.style.display = 'none'; // Hide record message on restart
+            restartButton.style.display = 'none'; // Hide restart button
             moveDirection.set(0, 0, 0); // Reset move direction
             if (isMobile) {
                 resetJoystick();
@@ -852,14 +890,30 @@
             }
         }
 
+        function adjustCameraForMobile() {
+            aspect = window.innerWidth / window.innerHeight;
+            let viewSize = d;
+
+            if (isMobile) {
+                // If portrait or square on mobile, zoom in (reduce view size)
+                if (aspect <= 1) {
+                    viewSize = d * 0.75; // Zoom in by making view smaller
+                }
+                 // Optional: Slightly zoom out for landscape mobile if needed
+                 // else {
+                 //    viewSize = d * 1.1; 
+                 // }
+            }
+
+            camera.left = -viewSize * aspect;
+            camera.right = viewSize * aspect;
+            camera.top = viewSize;
+            camera.bottom = -viewSize;
+            camera.updateProjectionMatrix();
+        }
 
         function onWindowResize() {
-            const aspect = window.innerWidth / window.innerHeight;
-            camera.left = -d * aspect;
-            camera.right = d * aspect;
-            camera.top = d;
-            camera.bottom = -d;
-            camera.updateProjectionMatrix();
+            adjustCameraForMobile(); // Use the adjustment function
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
