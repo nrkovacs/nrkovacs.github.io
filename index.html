@@ -654,8 +654,9 @@
             const bowlRadius = 9;
             const platformY = -1.0; // Base Y level for platforms
 
-            // Create Start Platform
-            startPlatform = new THREE.Mesh(platformGeo, startMat);
+            // Create Start Platform (make it larger)
+            const startPlatformGeo = new THREE.BoxGeometry(2.5, 0.2, 2.5); // Larger X and Z dimensions (was 1.5)
+            startPlatform = new THREE.Mesh(startPlatformGeo, startMat);
             // Move further inside the bowl to prevent clipping
             startPlatform.position.set(0, platformY, bowlRadius * 0.6); // Reduced multiplier from 0.75
             startPlatform.userData.isPlatform = true;
