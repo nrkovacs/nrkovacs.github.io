@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Crunch of Champions</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #add8e6; }
+        canvas { display: block; }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            z-index: 100;
+            display:block;
+            color: white;
+            font-family: monospace;
+            font-size: 20px;
+        }
+        #win-message, #lose-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: white;
+            background-color: rgba(0,0,0,0.7);
+            padding: 20px;
+            border-radius: 10px;
+            display: none; /* Hidden by default */
+            font-family: monospace;
+            text-align: center;
+        }
+        #timer-info {
+            position: absolute;
+            top: 40px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 18px;
+        }
+        #fastest-time-info {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 18px;
+        }
+        #record-message {
+            position: absolute;
+            top: 40%; /* Moved higher to avoid overlap */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 36px;
+            color: gold;
+            background-color: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            font-family: monospace;
+            text-align: center;
+            z-index: 110;
+        }
+        #highscore-info {
+            position: absolute;
+            top: 40px;
+            right: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 16px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 10px;
+            border-radius: 5px;
+            text-align: right;
+        }
+        /* Mobile UI elements */
+        #mobile-controls-info {
+            position: absolute;
+            bottom: 130px; /* Move up to make space for joystick */
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 8px;
+            border-radius: 5px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        #mouse-controls-info {
+            position: absolute;
+            bottom: 130px; /* Move up */
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            background-color: rgba(0,0,0,0.5);
+            padding: 8px;
+            border-radius: 5px;
+            z-index: 100;
+            pointer-events: none;
+        }
+        /* On-screen mobile controls */
+        #joystick-base {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 100px;
+            height: 100px;
+            background-color: rgba(128, 128, 128, 0.5);
+            border-radius: 50%;
+            display: none; /* Hidden by default */
+            z-index: 101;
+        }
+        #joystick-nub {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            background-color: rgba(200, 200, 200, 0.8);
+            border-radius: 50%;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* Nub doesn't capture events */
+        }
+        #jump-button {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            width: 80px;
+            height: 80px;
+            background-color: rgba(0, 200, 0, 0.6);
+            border-radius: 50%;
+            display: none; /* Hidden by default */
+            z-index: 101;
+            text-align: center;
+            line-height: 80px;
+            color: white;
+            font-size: 20px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Crunch of Champions</div>
+    <div id="win-message">You Won!<br><small>Press R to restart</small></div>
+    <div id="lose-message">You Lost!<br><small>Press R to restart</small></div>
+    <div id="mobile-controls-info">
+        Left: Joystick<br>
+        Right: Jump/Float
+    </div>
+    <div id="mouse-controls-info">
+        WASD/Arrows: Move<br>
+        Space/Shift: Jump
+    </div>
+    <div id="timer-info">
+        Time: <span id="current-time">0.00</span>s
+    </div>
+    <div id="fastest-time-info">
+        Fastest: <span id="fastest-time">-.--</span>s
+    </div>
+    <div id="record-message">
+        New Guinness World Record!
+    </div>
+    <div id="highscore-info">
+        High Scores:<br>
+        <ol id="highscore-list" style="list-style-position: inside; padding-left: 0; margin-top: 5px;"></ol>
+    </div>
+    <!-- Mobile Control Elements -->
+    <div id="joystick-base">
+        <div id="joystick-nub"></div>
+    </div>
+    <div id="jump-button">JUMP</div>
+    <div id="debug-text"></div>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.164.1/build/three.module.js"
+            }
+        }
+    </script>
+    <script type="module">
+        import * as THREE from 'three';
+
+        let scene, camera, renderer;
+        let player, bowl, milk, spoon;
+        let platforms = [];
+        let startPlatform, finishPlatform;
+        let keys = {};
+        let playerVelocity = new THREE.Vector3();
+        let gravity = -0.01;
+        let jumpStrength = 0.3; // Increased jump height by 50%
+        let playerSpeed = 0.05;
+        let onGround = false;
+        let gameOver = false;
+        let gameWon = false;
+        let jumpsRemaining = 0; // For double jump
+        let jumpKeyDown = false; // Prevent holding space for multi-jump
+        const playerFeetOffset = 0.9; // Distance from player origin (torso center) to feet
+
+        // Timer and High Score Variables
+        let startTime = 0;
+        let timerActive = false;
+        let fastestTime = localStorage.getItem('coc_fastestTime') ? parseFloat(localStorage.getItem('coc_fastestTime')) : Infinity;
+        let highScores = localStorage.getItem('coc_highScores') ? JSON.parse(localStorage.getItem('coc_highScores')) : [];
+        const MAX_HIGH_SCORES = 5;
+        let debugMode = false; // for debugging - set to true to see collision information
+        let debugText = document.createElement('div');
+
+        // Control variables
+        let isMobile = false;
+        let moveDirection = new THREE.Vector3(0, 0, 0);
+        let jumpButtonPressed = false;
+        let joystickActive = false;
+        let joystickCenter = { x: 0, y: 0 };
+        let joystickCurrent = { x: 0, y: 0 };
+        let joystickRadius = 50; // Pixel radius of joystick area
+        let floatFactor = 0.5; // How much gravity is reduced when floating (0 = no gravity, 1 = normal)
+
+        debugText.style.position = 'absolute';
+        debugText.style.bottom = '10px';
+        debugText.style.left = '10px';
+        debugText.style.color = 'white';
+        debugText.style.fontFamily = 'monospace';
+        debugText.style.zIndex = '1000';
+        document.body.appendChild(debugText);
+
+        const winMessage = document.getElementById('win-message');
+        const loseMessage = document.getElementById('lose-message');
+        const recordMessage = document.getElementById('record-message');
+        const currentTimeDisplay = document.getElementById('current-time');
+        const fastestTimeDisplay = document.getElementById('fastest-time');
+        const highScoreListDisplay = document.getElementById('highscore-list');
+
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 20; // Camera view dimensions
+
+        const joystickBase = document.getElementById('joystick-base');
+        const joystickNub = document.getElementById('joystick-nub');
+        const jumpButton = document.getElementById('jump-button');
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xadd8e6); // Light blue background
+
+            // Camera (Orthographic for Isometric View)
+            camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+            camera.position.set(20, 20, 20); // Isometric position
+            camera.lookAt(scene.position);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: false }); // Use false for pixelated look if desired, true for smoother
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            // renderer.setPixelRatio(window.devicePixelRatio * 0.5); // Optional: Lower resolution for more pixelation
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xcccccc, 0.8);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+            directionalLight.position.set(5, 10, 7.5);
+            scene.add(directionalLight);
+
+            // Game Elements
+            createBowl();
+            createMilk();
+            createPlatforms(); // Create platforms BEFORE player
+            createPlayer(); // Now player can be placed on start platform
+            createSpoon();
+
+            // Event Listeners
+            window.addEventListener('resize', onWindowResize, false);
+            document.addEventListener('keydown', onKeyDown, false);
+            document.addEventListener('keyup', onKeyUp, false);
+
+            // Detect mobile and add touch event listeners
+            detectMobile();
+            if (isMobile) {
+                document.getElementById('mobile-controls-info').style.display = 'block';
+                document.getElementById('mouse-controls-info').style.display = 'none';
+
+                // Show and setup joystick/button listeners
+                joystickBase.style.display = 'block';
+                jumpButton.style.display = 'block';
+                joystickBase.addEventListener('touchstart', handleJoystickStart, false);
+                joystickBase.addEventListener('touchmove', handleJoystickMove, { passive: false });
+                joystickBase.addEventListener('touchend', handleJoystickEnd, false);
+                jumpButton.addEventListener('touchstart', handleJumpButtonDown, false);
+                jumpButton.addEventListener('touchend', handleJumpButtonUp, false);
+                // Add global touchend listener to catch joystick release if finger slides off
+                window.addEventListener('touchend', handleGlobalTouchEnd, false);
+            } else {
+                document.getElementById('mobile-controls-info').style.display = 'none';
+                document.getElementById('mouse-controls-info').style.display = 'block';
+
+                // Hide mobile controls on desktop
+                joystickBase.style.display = 'none';
+                jumpButton.style.display = 'none';
+            }
+
+            // Initial display load for high scores
+            updateHighScoreDisplay();
+
+            // Start game loop
+            animate();
+            // Start timer and ensure player is positioned
+            resetGameStartConditions();
+        }
+
+         function resetGameStartConditions() {
+            // Place player on start platform
+            if (player && startPlatform) {
+                 player.position.set(
+                     startPlatform.position.x,
+                     startPlatform.position.y + playerFeetOffset + 0.20, // Ensure correct start height
+                     startPlatform.position.z
+                 );
+                 playerVelocity.set(0, 0, 0);
+                 onGround = false; // Start airborne slightly
+                 jumpsRemaining = 2;
+                 jumpKeyDown = false;
+            }
+
+             // Reset game state flags
+             gameOver = false;
+             gameWon = false;
+             winMessage.style.display = 'none';
+             loseMessage.style.display = 'none';
+             recordMessage.style.display = 'none';
+
+             // Reset spoon position
+             if (spoon) {
+                  spoon.position.set(15, 5, 0);
+             }
+
+             // Start timer
+             startTime = performance.now();
+             timerActive = true;
+             currentTimeDisplay.textContent = '0.00';
+         }
+
+        function detectMobile() {
+            // Check if the device is likely a mobile device
+            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
+            
+            // Regular expressions to check for mobile devices
+            const regexes = [
+                /Android/i,
+                /webOS/i,
+                /iPhone/i,
+                /iPad/i,
+                /iPod/i,
+                /BlackBerry/i,
+                /Windows Phone/i,
+                /Mobile/i,
+                /Tablet/i
+            ];
+            
+            // Check if any mobile device pattern matches
+            isMobile = regexes.some(regex => regex.test(userAgent));
+            
+            // Also consider touch-enabled devices as mobile
+            if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+                isMobile = true;
+            }
+            
+            return isMobile;
+        }
+
+        function createPlayer() {
+            player = new THREE.Group();
+
+           const headSize = 0.4;
+           const torsoHeight = 0.6;
+           const torsoWidth = 0.4;
+           const limbWidth = 0.2;
+           const armHeight = 0.6;
+           const legHeight = 0.6;
+
+           // Materials
+           const skinMat = new THREE.MeshLambertMaterial({ color: 0xFFDBAC }); // Skin
+           const shirtMat = new THREE.MeshLambertMaterial({ color: 0x00AAAA }); // Cyan shirt
+           const pantsMat = new THREE.MeshLambertMaterial({ color: 0x0000AA }); // Blue pants
+
+           // Head
+           const headGeo = new THREE.BoxGeometry(headSize, headSize, headSize);
+           const head = new THREE.Mesh(headGeo, skinMat);
+           head.position.y = (torsoHeight / 2) + (headSize / 2);
+           player.add(head);
+
+           // Torso
+           const torsoGeo = new THREE.BoxGeometry(torsoWidth, torsoHeight, limbWidth); // Torso depth = limb width
+           const torso = new THREE.Mesh(torsoGeo, shirtMat);
+           torso.position.y = 0;
+           player.add(torso);
+
+           // Arms
+           const armGeo = new THREE.BoxGeometry(limbWidth, armHeight, limbWidth);
+           const leftArm = new THREE.Mesh(armGeo, skinMat); // Use skin for arms too
+           leftArm.position.set(-(torsoWidth / 2 + limbWidth / 2), 0, 0);
+           player.add(leftArm);
+           const rightArm = new THREE.Mesh(armGeo, skinMat);
+           rightArm.position.set(torsoWidth / 2 + limbWidth / 2, 0, 0);
+           player.add(rightArm);
+
+           // Legs
+           const legGeo = new THREE.BoxGeometry(limbWidth, legHeight, limbWidth);
+           const leftLeg = new THREE.Mesh(legGeo, pantsMat);
+           leftLeg.position.set(-(limbWidth / 2), -(torsoHeight / 2 + legHeight / 2), 0);
+           player.add(leftLeg);
+           const rightLeg = new THREE.Mesh(legGeo, pantsMat);
+           rightLeg.position.set(limbWidth / 2, -(torsoHeight / 2 + legHeight / 2), 0);
+           player.add(rightLeg);
+
+            // Player group's origin is at the center of the torso
+            scene.add(player);
+
+            // Set initial position based on start platform (handled in resetGameStartConditions)
+        }
+
+        function createBowl() {
+            // A large, shallow cylinder for the bowl
+            const bowlGeo = new THREE.CylinderGeometry(10, 11, 3, 32, 1, true); // radiusTop, radiusBottom, height, radialSegments, heightSegments, openEnded
+            const bowlMat = new THREE.MeshLambertMaterial({ color: 0xf0f0f0, side: THREE.DoubleSide });
+            bowl = new THREE.Mesh(bowlGeo, bowlMat);
+            bowl.position.y = 0; // Bottom of the bowl at y=0
+            scene.add(bowl);
+        }
+
+         function createMilk() {
+            // A flat plane or shallow cylinder inside the bowl for the milk
+            const milkGeo = new THREE.CylinderGeometry(9.8, 9.8, 0.1, 32); // Slightly smaller radius than bowl, very short
+            const milkMat = new THREE.MeshLambertMaterial({ color: 0xfffff0, transparent: true, opacity: 0.8 });
+            milk = new THREE.Mesh(milkGeo, milkMat);
+            milk.position.y = -1.4; // Just below the lip of the bowl, adjust as needed
+            scene.add(milk);
+         }
+
+        function createPlatforms() {
+            // Clear previous platforms if any exist
+            platforms.forEach(p => scene.remove(p));
+            if (startPlatform) scene.remove(startPlatform);
+            if (finishPlatform) scene.remove(finishPlatform);
+            platforms = []; // Clear existing platforms if restarting
+
+            const platformGeo = new THREE.BoxGeometry(1.5, 0.2, 1.5); // Flat squares
+            const startMat = new THREE.MeshLambertMaterial({ color: 0x00ff00 }); // Green for Start
+            const finishMat = new THREE.MeshLambertMaterial({ color: 0xffd700 }); // Gold for Finish
+
+            const bowlRadius = 9;
+            const platformY = -1.0; // Base Y level for platforms
+
+            // Create Start Platform
+            startPlatform = new THREE.Mesh(platformGeo, startMat);
+            startPlatform.position.set(0, platformY, bowlRadius * 0.9); // Near positive Z edge
+            startPlatform.userData.isPlatform = true;
+            startPlatform.userData.isStart = true;
+            scene.add(startPlatform);
+            platforms.push(startPlatform); // Add to general platforms for collision
+
+            // Create Finish Platform
+            finishPlatform = new THREE.Mesh(platformGeo, finishMat);
+            finishPlatform.position.set(0, platformY, -bowlRadius * 0.9); // Near negative Z edge
+            finishPlatform.userData.isPlatform = true;
+            finishPlatform.userData.isFinish = true;
+            scene.add(finishPlatform);
+            platforms.push(finishPlatform); // Add to general platforms for collision
+
+            // Randomly place intermediate platforms
+            const numPlatforms = 18; // Increased cereal count by 50%
+            const platformBaseMaterial = new THREE.MeshLambertMaterial({ color: 0xd2691e });
+            const safeZone = 2.5; // Define the safe zone radius around start/finish platforms
+
+            for (let i = 0; i < numPlatforms; i++) {
+                const platform = new THREE.Mesh(platformGeo.clone(), platformBaseMaterial.clone());
+                let placed = false;
+                while (!placed) {
+                    const angle = Math.random() * Math.PI * 2;
+                    // Place between 20% and 80% of radius to avoid edges and center overlap
+                    const radius = bowlRadius * 0.2 + Math.random() * bowlRadius * 0.6;
+                    const x = Math.cos(angle) * radius;
+                    const z = Math.sin(angle) * radius;
+
+                    // Avoid placing too close to start/finish platform Z axis
+                    if (Math.abs(z - startPlatform.position.z) > safeZone && Math.abs(z - finishPlatform.position.z) > safeZone) {
+                         platform.position.set(
+                             x,
+                             platformY + Math.random() * 0.5 - 0.25, // Vary height slightly
+                             z
+                         );
+                         placed = true;
+                    }
+                }
+
+                platform.userData.isPlatform = true; // Tag for collision detection
+
+                 // Add movement data for floating effect
+                 platform.userData.moveDirection = new THREE.Vector3(
+                     Math.random() - 0.5,
+                     0, // Keep Y movement simple for now (bobbing)
+                     Math.random() - 0.5
+                 ).normalize();
+                 platform.userData.moveSpeed = 0.1 + Math.random() * 0.4; // Slow speed
+                 platform.userData.bobOffset = Math.random() * Math.PI * 2; // Random start for bobbing
+                 platform.userData.baseY = platform.position.y;
+
+                scene.add(platform);
+                platforms.push(platform);
+            }
+        }
+
+        function createSpoon() {
+             // Composite object for the spoon
+            spoon = new THREE.Group();
+
+            const handleGeo = new THREE.BoxGeometry(0.5, 0.2, 6); // Long handle
+            const handleMat = new THREE.MeshLambertMaterial({ color: 0xc0c0c0 }); // Silver
+            const handle = new THREE.Mesh(handleGeo, handleMat);
+            handle.position.z = -3; // Offset handle relative to the scoop center
+
+             // Use a scaled hemisphere for a better scoop shape
+             const scoopRadius = 1.4;
+             const scoopGeo = new THREE.SphereGeometry(
+                 scoopRadius, // radius
+                 32, // widthSegments
+                 16, // heightSegments
+                 0, // phiStart
+                 Math.PI * 2, // phiLength
+                 0, // thetaStart
+                 Math.PI / 2 // thetaLength (creates hemisphere)
+             );
+             const scoopMat = new THREE.MeshLambertMaterial({ color: 0xd0d0d0, side: THREE.DoubleSide });
+             const scoop = new THREE.Mesh(scoopGeo, scoopMat);
+             scoop.rotation.x = Math.PI / 2; // Rotate to face upwards
+             scoop.scale.set(1.2, 1, 1.6); // Scale X and Z to make it oval/elongated
+             scoop.position.set(0, -0.1, -0.3); // Adjust position slightly relative to handle
+
+             spoon.add(handle);
+             spoon.add(scoop);
+             spoon.position.set(15, 5, 0); // Start off-screen
+
+             scene.add(spoon);
+
+             // Bounding box for collision
+             const spoonColliderGeo = new THREE.BoxGeometry(3, 1, 3); // Use scoop dimensions approx
+             const spoonColliderMat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, visible: debugMode }); // Invisible collider unless debugging
+             const spoonCollider = new THREE.Mesh(spoonColliderGeo, spoonColliderMat);
+             spoonCollider.userData.isSpoon = true; // Tag for collision
+             spoonCollider.position.copy(scoop.position); // Match scoop position
+             spoon.add(spoonCollider); // Add collider to the spoon group
+             spoon.userData.collider = spoonCollider; // Reference for easy access
+        }
+
+        // Collision Detection (AABB)
+        function checkCollision(obj1, obj2) {
+             // Ensure world matrices are updated for accurate bounding boxes
+             obj1.updateMatrixWorld();
+             obj2.updateMatrixWorld();
+
+             // We need the collider of the spoon, not the whole spoon group
+             const obj2Collider = (obj2 === spoon && spoon.userData.collider) ? spoon.userData.collider : obj2;
+
+             const box1 = new THREE.Box3().setFromObject(obj1);
+             const box2 = new THREE.Box3().setFromObject(obj2Collider);
+
+             return box1.intersectsBox(box2);
+        }
+
+        function checkPlatformCollision() {
+            onGround = false;
+            const playerBox = new THREE.Box3().setFromObject(player); // Use overall player bounds for horizontal check
+            const playerFeetY = player.position.y - playerFeetOffset; // Use exact feet position for vertical check
+
+            for (let i = 0; i < platforms.length; i++) {
+                const platform = platforms[i];
+                const platformBox = new THREE.Box3().setFromObject(platform);
+
+                // Check if player is roughly above the platform horizontally
+                if (playerBox.max.x > platformBox.min.x &&
+                    playerBox.min.x < platformBox.max.x &&
+                    playerBox.max.z > platformBox.min.z &&
+                    playerBox.min.z < platformBox.max.z) {
+
+                    // Check if player is falling onto the platform
+                    // Feet must be slightly above platform top, and velocity must be downward
+                    if (playerVelocity.y <= 0 &&
+                        playerFeetY >= platformBox.max.y - 0.05 && // within 0.05 tolerance *above*
+                        playerFeetY <= platformBox.max.y + 0.15) { // allow slightly *below* if moving fast
+
+                        player.position.y = platformBox.max.y + playerFeetOffset; // Place player origin so feet are on platform
+                        playerVelocity.y = 0;
+                        onGround = true;
+                        jumpsRemaining = 2; // Reset double jump on landing
+                        // Check if this is the finish platform
+                        if (platform.userData.isFinish) {
+                            checkWinCondition(true); // Landed on finish platform
+                        }
+                        return; // Stop checking once landed on one platform
+                    }
+                }
+            }
+        }
+
+        function updatePlatformMovement(deltaTime) {
+            const bowlRadiusSq = 9.8 * 9.8; // Use slightly inner radius squared for checks
+            const bobSpeed = 0.5;
+            const bobAmount = 0.1;
+
+            platforms.forEach(platform => {
+                // Skip start and finish platforms
+                if (platform.userData.isStart || platform.userData.isFinish) {
+                    return;
+                }
+
+                // Bobbing motion (Y axis)
+                platform.userData.bobOffset += bobSpeed * deltaTime;
+                platform.position.y = platform.userData.baseY + Math.sin(platform.userData.bobOffset) * bobAmount;
+
+                // Drifting motion (X and Z axes)
+                const moveStep = platform.userData.moveDirection.clone().multiplyScalar(platform.userData.moveSpeed * deltaTime);
+                platform.position.add(moveStep);
+
+                // Boundary check (keep platforms within the bowl radius)
+                const distSq = platform.position.x * platform.position.x + platform.position.z * platform.position.z;
+                if (distSq > bowlRadiusSq) {
+                    // If outside, reverse direction or redirect inwards
+                    platform.userData.moveDirection.negate(); // Simple reversal
+                    // Move back slightly to prevent getting stuck outside
+                    platform.position.add(platform.userData.moveDirection.clone().multiplyScalar(0.1));
+                }
+
+                // Optional: Occasionally change direction slightly for more randomness
+                if (Math.random() < 0.01) { // Low probability each frame
+                     const randomRotation = new THREE.Euler(0, (Math.random() - 0.5) * 0.5, 0);
+                     platform.userData.moveDirection.applyEuler(randomRotation);
+                }
+            });
+        }
+
+        function updateSpoon(deltaTime) {
+            if (!spoon || !player) return;
+
+            const spoonSpeed = 0.75 * deltaTime; // Further reduced speed
+            const targetPosition = player.position.clone();
+            targetPosition.y = Math.max(targetPosition.y, milk.position.y + 1.5); // Don't let spoon go too deep
+
+            // Simple chase logic
+            const direction = targetPosition.sub(spoon.position).normalize();
+            spoon.position.add(direction.multiplyScalar(spoonSpeed));
+
+            // Add some swooping motion (optional)
+            spoon.position.y += Math.sin(Date.now() * 0.002) * 0.05;
+
+            // Basic rotation towards player (optional)
+            spoon.lookAt(player.position);
+        }
+
+        function checkWinCondition(landedOnFinish) {
+            // Win if player has landed on the finish platform (checked in checkPlatformCollision)
+            if (landedOnFinish) {
+                gameWon = true;
+                timerActive = false;
+                const finalTime = (performance.now() - startTime) / 1000;
+                currentTimeDisplay.textContent = finalTime.toFixed(2); // Show final time
+
+                winMessage.style.display = 'block';
+                checkAndRecordHighScore(finalTime);
+                 // Optionally stop animation or further updates
+                 // cancelAnimationFrame(animate); // Could uncomment if we stop animate loop
+            }
+        }
+
+        function checkLoseConditions() {
+            // Lose if player falls into the milk
+            const playerBox = new THREE.Box3().setFromObject(player);
+
+            if (debugMode) {
+                debugText.innerHTML = `Player Y min: ${playerBox.min.y.toFixed(2)}<br>Milk Y: ${milk.position.y.toFixed(2)}<br>Offset: ${playerFeetOffset.toFixed(2)}`;
+            }
+
+            // Calculate the bottom of the player model based on its position and feet offset
+            const playerBottomY = player.position.y - playerFeetOffset;
+            const milkTopY = milk.position.y + 0.05; // Slight threshold above milk
+
+            if (playerBottomY < milkTopY) {
+                 gameOver = true;
+                 loseMessage.style.display = 'block';
+                 return true;
+            }
+
+            // Lose if spoon collides with player
+            if (spoon && spoon.userData.collider && checkCollision(player, spoon.userData.collider)) {
+                 gameOver = true;
+                 loseMessage.style.display = 'block';
+                 return true;
+            }
+            return false;
+        }
+
+        const clock = new THREE.Clock(); // For deltaTime
+
+        function updateGameLogic() {
+             if (gameOver || gameWon) return;
+
+             const deltaTime = clock.getDelta();
+
+            // --- Player Movement ---
+            // Handle keyboard input if not using alternative controls
+            if (!isMobile) { // Desktop uses keyboard exclusively now
+                moveDirection.set(0, 0, 0); // Reset direction
+                if (keys['w'] || keys['arrowup']) {
+                    moveDirection.z -= 1;
+                }
+                if (keys['s'] || keys['arrowdown']) {
+                    moveDirection.z += 1;
+                }
+                if (keys['a'] || keys['arrowleft']) {
+                    moveDirection.x -= 1;
+                }
+                if (keys['d'] || keys['arrowright']) {
+                    moveDirection.x += 1;
+                }
+
+                // Normalize diagonal movement
+                if (moveDirection.lengthSq() > 0) {
+                    moveDirection.normalize().multiplyScalar(playerSpeed);
+                }
+            }
+             // For mobile, moveDirection is updated by joystick handlers
+             // Ensure moveDirection is scaled by speed *after* joystick logic sets normalized direction
+             const finalMove = moveDirection.clone().multiplyScalar(playerSpeed);
+
+
+             // Apply movement relative to isometric view (adjust if needed)
+             // This simple approach moves along world axes
+             player.position.add(finalMove);
+
+
+            // --- Player Physics & Jumping ---
+            // Add character rotation to face movement direction (for mobile and keyboard)
+            if (finalMove.lengthSq() > 0.001) {
+                const targetRotation = Math.atan2(finalMove.x, finalMove.z);
+                // Simple rotation - instantaneous
+                player.rotation.y = targetRotation;
+            }
+
+            // Apply Gravity (with potential float modification)
+            let currentGravity = gravity;
+            if (isMobile && jumpButtonPressed && jumpsRemaining <= 0 && playerVelocity.y < 0) {
+                // If floating (on mobile, holding jump after double jump, moving down)
+                currentGravity *= floatFactor;
+            }
+            playerVelocity.y += currentGravity;
+
+            player.position.y += playerVelocity.y;
+
+             checkPlatformCollision(); // Check for landing and reset jumps
+
+            // Prevent falling through floor (basic check)
+            if (player.position.y - playerFeetOffset < milk.position.y - 1) { // Well below milk?
+                 // This should normally trigger lose condition, but as a safety:
+                 // Directly call lose condition handler? Or reset position?
+                 if (!gameOver) {
+                    console.warn("Player fell through floor unexpectedly.");
+                    gameOver = true; // Trigger game over state
+                    loseMessage.style.display = 'block';
+                    timerActive = false;
+                 }
+            }
+
+             // --- Spoon Logic ---
+             updateSpoon(deltaTime);
+
+             // --- Platform Movement ---
+             updatePlatformMovement(deltaTime);
+
+             // --- Collision & Win/Loss Checks ---
+              if (checkLoseConditions()) {
+                  return; // Stop further updates this frame if lost
+              }
+             // Win condition is checked within checkPlatformCollision
+        }
+
+        function restartGame() {
+            console.log("Restarting game...");
+
+            // Recreate platforms in new positions
+            createPlatforms();
+
+            // Reset player position, velocity, jump state
+             if (player) {
+                 if (startPlatform) {
+                     player.position.set(
+                         startPlatform.position.x,
+                         startPlatform.position.y + playerFeetOffset + 0.20, // Use consistent start height
+                         startPlatform.position.z
+                     );
+                 } else {
+                     player.position.set(0, 1 + playerFeetOffset, 8); // Fallback adjusted for offset
+                 }
+                 playerVelocity.set(0, 0, 0);
+                 onGround = false; // Player starts slightly airborne
+             } else {
+                 createPlayer(); // Ensure player is created if missing
+             }
+
+            // Reset jump state
+            jumpsRemaining = 2; // Give back double jump
+            jumpKeyDown = false;
+
+            // Reset game state
+            gameOver = false;
+            gameWon = false;
+            winMessage.style.display = 'none';
+            loseMessage.style.display = 'none';
+            recordMessage.style.display = 'none'; // Hide record message on restart
+            moveDirection.set(0, 0, 0); // Reset move direction
+            if (isMobile) {
+                resetJoystick();
+                jumpButtonPressed = false;
+            }
+
+            // Reset spoon position/state
+            if (spoon) {
+                 spoon.position.set(15, 5, 0); // Reset spoon start position off-screen
+             } else {
+                 createSpoon(); // Ensure spoon is created
+             }
+
+            // Ensure other elements exist (might be called before init finishes fully)
+             if (!bowl) createBowl();
+             if (!milk) createMilk();
+
+            // Start timer
+            startTime = performance.now();
+            timerActive = true;
+            currentTimeDisplay.textContent = '0.00'; // Reset display
+
+            // Resume animation loop is handled by the animate function structure
+        }
+
+
+        function playerJump() {
+             if (jumpsRemaining > 0) {
+                 playerVelocity.y = jumpStrength;
+                 jumpsRemaining--;
+                 onGround = false; // Player is definitely airborne after any jump
+            }
+        }
+
+
+        function onWindowResize() {
+            const aspect = window.innerWidth / window.innerHeight;
+            camera.left = -d * aspect;
+            camera.right = d * aspect;
+            camera.top = d;
+            camera.bottom = -d;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onKeyDown(event) {
+            const key = event.key.toLowerCase();
+            keys[key] = true;
+             if ((gameOver || gameWon) && key === 'r') {
+                 restartGame();
+             }
+
+            // Handle jump key press - only trigger once per press
+            if ((key === ' ' || key === 'shift') && !jumpKeyDown) {
+                jumpKeyDown = true;
+                playerJump();
+            }
+
+            // If any movement key is pressed, disable mouse controls
+            if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                moveDirection.set(0, 0, 0); // Reset move direction
+            }
+        }
+
+        function onKeyUp(event) {
+             const key = event.key.toLowerCase();
+             keys[key] = false;
+
+            // Reset jump key flag
+            if (key === ' ' || key === 'shift') {
+                jumpKeyDown = false;
+            }
+        }
+
+        function formatTime(timeSeconds) {
+            return timeSeconds === Infinity ? '-.--' : timeSeconds.toFixed(2);
+        }
+
+        function updateHighScoreDisplay() {
+            fastestTimeDisplay.textContent = formatTime(fastestTime);
+            highScoreListDisplay.innerHTML = ''; // Clear existing list
+            highScores.slice(0, MAX_HIGH_SCORES).forEach((score, index) => {
+                const li = document.createElement('li');
+                li.textContent = `${index + 1}. ${formatTime(score)}s`;
+                highScoreListDisplay.appendChild(li);
+            });
+        }
+
+        function checkAndRecordHighScore(currentTime) {
+            let isNewRecord = false;
+            if (currentTime < fastestTime) {
+                fastestTime = currentTime;
+                localStorage.setItem('coc_fastestTime', fastestTime);
+                recordMessage.style.display = 'block'; // Show record message
+                isNewRecord = true;
+            }
+
+            // Add score to list, sort, and trim
+            highScores.push(currentTime);
+            highScores.sort((a, b) => a - b); // Sort ascending (fastest first)
+            highScores = highScores.slice(0, MAX_HIGH_SCORES); // Keep only top N
+
+            localStorage.setItem('coc_highScores', JSON.stringify(highScores));
+            updateHighScoreDisplay();
+            return isNewRecord;
+        }
+
+        // --- Mobile Control Handlers ---
+
+        function handleJoystickStart(event) {
+            event.preventDefault();
+            if (event.touches.length > 0) {
+                joystickActive = true;
+                const touch = event.touches[0];
+                const rect = joystickBase.getBoundingClientRect();
+                joystickCenter.x = rect.left + rect.width / 2;
+                joystickCenter.y = rect.top + rect.height / 2;
+                updateJoystickPosition(touch.clientX, touch.clientY);
+            }
+        }
+
+        function handleJoystickMove(event) {
+            event.preventDefault(); // Prevent scrolling
+            if (joystickActive && event.touches.length > 0) {
+                const touch = event.touches[0];
+                updateJoystickPosition(touch.clientX, touch.clientY);
+            }
+        }
+
+        function handleJoystickEnd(event) {
+            event.preventDefault();
+            resetJoystick();
+        }
+
+         function handleGlobalTouchEnd(event) {
+             // Check if the touch ending was the one controlling the joystick
+             // This is a simplified check; a more robust solution might track touch IDs
+             if (joystickActive) {
+                 // Check if the touch ending is outside the joystick base
+                  let isJoystickTouch = false;
+                 for (let i = 0; i < event.changedTouches.length; i++) {
+                     const touch = event.changedTouches[i];
+                      const rect = joystickBase.getBoundingClientRect();
+                     if (touch.target === joystickBase) {
+                         isJoystickTouch = true;
+                         break;
+                     }
+                 }
+                 // If no touch ending *on* the joystick was registered, assume finger slid off
+                 if (!isJoystickTouch) {
+                     resetJoystick();
+                 }
+             }
+         }
+
+         function updateJoystickPosition(clientX, clientY) {
+             let dx = clientX - joystickCenter.x;
+             let dy = clientY - joystickCenter.y;
+             let distance = Math.sqrt(dx * dx + dy * dy);
+
+             // Clamp the nub position within the base radius
+             if (distance > joystickRadius) {
+                 dx *= joystickRadius / distance;
+                 dy *= joystickRadius / distance;
+                 distance = joystickRadius;
+             }
+
+             // Update nub visual position (relative to base center)
+             joystickNub.style.left = `calc(50% + ${dx}px)`;
+             joystickNub.style.top = `calc(50% + ${dy}px)`;
+
+             // Update game move direction based on joystick vector
+             // Map joystick dy to game z (forward/backward), dx to game x (left/right)
+             // Negate dy because screen Y down is positive, but game Z forward is negative
+             if (distance > 5) { // Dead zone
+                 moveDirection.set(dx / joystickRadius, 0, -dy / joystickRadius).normalize();
+             } else {
+                 moveDirection.set(0, 0, 0);
+             }
+         }
+
+         function resetJoystick() {
+             joystickActive = false;
+             joystickNub.style.left = '50%';
+             joystickNub.style.top = '50%';
+             moveDirection.set(0, 0, 0); // Stop movement
+         }
+
+         function handleJumpButtonDown(event) {
+             event.preventDefault();
+             jumpButtonPressed = true;
+             playerJump(); // Trigger jump immediately
+         }
+
+         function handleJumpButtonUp(event) {
+             event.preventDefault();
+             jumpButtonPressed = false;
+         }
+
+        function animate() {
+            // Always request the next frame to keep the loop going, even if game over/won
+            requestAnimationFrame(animate);
+
+            // Render the scene
+            renderer.render(scene, camera);
+
+            // Update Timer Display if active
+            if (timerActive) {
+                const elapsedTime = (performance.now() - startTime) / 1000;
+                currentTimeDisplay.textContent = elapsedTime.toFixed(2);
+            }
+
+            // Only update game logic if game is active
+            if (!gameOver && !gameWon) {
+                updateGameLogic();
+            }
+        }
+
+        // Start the game
+        init();
+
+    </script>
+</body>
+</html> 
