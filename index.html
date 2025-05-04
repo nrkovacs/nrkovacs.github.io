@@ -294,6 +294,7 @@
             createMilk();
             createPlatforms(); // Create platforms BEFORE player
             createPlayer(); // Now player can be placed on start platform
+            createShadow(); // Create the shadow
             createSpoon();
 
             // Event Listeners
@@ -457,6 +458,20 @@
             scene.add(player);
 
             // Set initial position based on start platform (handled in resetGameStartConditions)
+        }
+
+        function createShadow() {
+            const shadowGeo = new THREE.CircleGeometry(0.5, 16); // Simple circle shadow
+            const shadowMat = new THREE.MeshBasicMaterial({ 
+                color: 0x000000, 
+                transparent: true, 
+                opacity: 0.4 
+            });
+            shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+            shadowMesh.rotation.x = -Math.PI / 2; // Rotate to lie flat on the ground
+            shadowMesh.position.y = -1.49; // Start slightly above milk initially
+            shadowMesh.visible = false; // Start hidden until first update
+            scene.add(shadowMesh);
         }
 
         function createBowl() {
@@ -827,6 +842,42 @@
                   return; // Stop further updates this frame if lost
               }
              // Win condition is checked within checkPlatformCollision
+
+             // --- Update Shadow Position ---
+             updateShadowPosition();
+        }
+
+        function updateShadowPosition() {
+            if (!player || !shadowMesh) return;
+
+            // Objects the shadow can be cast on (platforms + milk)
+            const collidableObjects = [...platforms, milk]; 
+
+            // Raycast down from slightly above the player's feet
+            const rayOrigin = player.position.clone();
+            rayOrigin.y += 0.1; // Start slightly above current pos to avoid self-intersection
+            const rayDirection = new THREE.Vector3(0, -1, 0);
+            raycaster.set(rayOrigin, rayDirection);
+
+            const intersects = raycaster.intersectObjects(collidableObjects, false); // Don't check children
+
+            if (intersects.length > 0) {
+                // Find the closest intersection point
+                const intersectionPoint = intersects[0].point;
+                const distanceToGround = intersects[0].distance;
+
+                shadowMesh.position.set(player.position.x, intersectionPoint.y + 0.01, player.position.z); // Position slightly above the hit surface
+                shadowMesh.visible = true;
+
+                // Optional: Scale shadow based on distance (subtle effect)
+                const maxShadowDist = 3.0;
+                const scaleFactor = Math.max(0.3, 1.0 - (distanceToGround / maxShadowDist));
+                shadowMesh.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                 shadowMesh.material.opacity = Math.max(0.1, 0.4 * scaleFactor);
+
+            } else {
+                shadowMesh.visible = false; // Hide shadow if nothing is below within ray range
+            }
         }
 
         function restartGame() {
