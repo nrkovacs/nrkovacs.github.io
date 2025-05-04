@@ -141,6 +141,9 @@
             font-size: 24px; /* Slightly larger text */
             font-family: monospace;
             font-weight: bold;
+            /* Prevent text selection on mobile */
+            -webkit-user-select: none; /* Safari */
+            user-select: none;
         }
         #restart-button {
             position: absolute;
