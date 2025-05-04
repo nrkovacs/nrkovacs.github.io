@@ -734,37 +734,13 @@
             handle.rotation.x = Math.PI / 2; // Rotate to lie flat along Z
             handle.position.set(0, 0, -(handleLength / 2 + 0.5)); // Position relative to scoop center
 
-            // Scoop - Use ShapeGeometry or ExtrudeGeometry for a better shape
-            const scoopShape = new THREE.Shape();
+            // Define dimensions for the scoop
             const scoopWidth = 1.2;
             const scoopLength = 1.8;
-            const scoopDepth = 0.4; // How deep the scoop depression is
-
-            // Define the 2D outline of the spoon scoop
-            scoopShape.moveTo(-scoopWidth / 2, -scoopLength / 2);
-            scoopShape.quadraticCurveTo(0, -scoopLength * 0.7, scoopWidth / 2, -scoopLength / 2); // Bottom curve
-            scoopShape.lineTo(scoopWidth * 0.6, scoopLength / 2 * 0.8); // Taper towards handle
-            scoopShape.quadraticCurveTo(0, scoopLength / 2, -scoopWidth * 0.6, scoopLength / 2 * 0.8); // Top curve near handle
-            scoopShape.lineTo(-scoopWidth / 2, -scoopLength / 2); // Close shape
-
-            // Extrude the shape slightly to give it thickness and a depression
-            const extrudeSettings = {
-                steps: 1,
-                depth: 0.1, // Thickness of the metal
-                bevelEnabled: true,
-                bevelThickness: 0.05,
-                bevelSize: 0.05,
-                bevelOffset: 0,
-                bevelSegments: 3
-                // curveSegments could be added for smoother curves if needed
-            };
-
-            // We might need a different approach for the depression, maybe CSG or modeling software import.
-            // For simplicity here, let's use a simpler geometry for the scoop base and add a depression manually or use a texture map.
-            // Alternative: Use a shallow, scaled Sphere or Ellipsoid for the scoop part.
+            // const scoopDepth = 0.4; // Depth is not directly used with flat ShapeGeometry
 
             // Create an oval shape for the spoon scoop
-            const scoopShape = new THREE.Shape();
+            const scoopShape = new THREE.Shape(); // This is the correct declaration
             const scoopXRadius = scoopWidth / 2; // Use defined width
             const scoopYRadius = scoopLength / 2; // Use defined length
             const curveSegments = 32; // Smoothness of the ellipse
