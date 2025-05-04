@@ -218,6 +218,8 @@
         let jumpsRemaining = 0; // For double jump
         let jumpKeyDown = false; // Prevent holding space for multi-jump
         const playerFeetOffset = 0.9; // Distance from player origin (torso center) to feet
+        let shadowMesh; // For player shadow
+        let raycaster = new THREE.Raycaster(); // For shadow positioning
 
         // Timer and High Score Variables
         let startTime = 0;
@@ -773,6 +775,11 @@
              const finalMove = moveDirection.clone().multiplyScalar(playerSpeed);
 
 
+             // Normalize the move direction (whether from keyboard or joystick)
+             if (moveDirection.lengthSq() > 0.0001) { // Use a small threshold
+                 moveDirection.normalize();
+             }
+
              // Apply movement relative to isometric view (adjust if needed)
              // This simple approach moves along world axes
              player.position.add(finalMove);
@@ -1044,10 +1051,20 @@
              joystickNub.style.top = `calc(50% + ${dy}px)`;
 
              // Update game move direction based on joystick vector
-             // Map joystick dy to game z (forward/backward), dx to game x (left/right)
-             // Negate dy because screen Y down is positive, but game Z forward is negative
              if (distance > 5) { // Dead zone
-                 moveDirection.set(dx / joystickRadius, 0, -dy / joystickRadius).normalize();
+                 // Convert joystick coords (dx, dy) to normalized screen coords (jx, jy) with Y pointing up
+                 const jx = dx / joystickRadius;
+                 const jy = -dy / joystickRadius; // Invert dy because screen Y is down
+
+                 // Rotate the input vector by -45 degrees to match isometric view
+                 // worldX = (jx - jy) / sqrt(2)
+                 // worldZ = (-jx - jy) / sqrt(2)
+                 const factor = Math.sqrt(0.5);
+                 const worldX = (jx - jy) * factor;
+                 const worldZ = (-jx - jy) * factor;
+
+                 moveDirection.set(worldX, 0, worldZ);
+                 // Normalization happens later before applying speed
              } else {
                  moveDirection.set(0, 0, 0);
              }
