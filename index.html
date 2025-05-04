@@ -703,7 +703,8 @@
             const scoopGeo = new THREE.SphereGeometry(scoopRadius, 32, 16, 0, Math.PI * 2, 0, Math.PI * 0.6); // Less than hemisphere
             const scoop = new THREE.Mesh(scoopGeo, silverMat);
             scoop.scale.set(scoopWidth / (scoopRadius * 2), scoopDepth / scoopRadius, scoopLength / (scoopRadius * 2)); // Scale to desired dimensions
-            scoop.rotation.x = Math.PI * 0.55; // Tilt slightly more than flat
+            // Adjust rotation for better isometric view (less steep angle)
+            scoop.rotation.x = Math.PI * 0.45; // Was 0.55
             scoop.position.set(0, -0.1, 0); // Center the scoop
 
             spoon.add(handle);
