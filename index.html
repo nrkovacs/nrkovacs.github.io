@@ -1258,7 +1258,8 @@
             highScoreListDisplay.innerHTML = ''; // Clear existing list
             highScores.slice(0, MAX_HIGH_SCORES).forEach((score, index) => {
                 const li = document.createElement('li');
-                li.textContent = `${index + 1}. ${formatTime(score)}s`;
+                // Remove the manual index number, <ol> handles it
+                li.textContent = `${formatTime(score)}s`; 
                 highScoreListDisplay.appendChild(li);
             });
         }
