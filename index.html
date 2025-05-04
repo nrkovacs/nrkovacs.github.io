@@ -893,7 +893,7 @@
         function updateSpoon(deltaTime) {
             if (!spoon || !player) return;
 
-            const spoonSpeed = 0.75 * deltaTime; // Further reduced speed
+            const spoonSpeed = 1.5 * deltaTime; // Increased speed (was 0.75)
             const targetPosition = player.position.clone();
             targetPosition.y = Math.max(targetPosition.y, milk.position.y + 1.5); // Don't let spoon go too deep
 
