@@ -1192,10 +1192,17 @@
                 } else { // Landscape
                     viewSize = d * 0.85; // Zoom in slightly for landscape mobile
                 }
-                 // Optional: Slightly zoom out for landscape mobile if needed
                  // else {
                  //    viewSize = d * 1.1;
+                 // } // End mobile-specific adjustments
+            } else { // Desktop or wider screens
+                 if (aspect > 1.7) { // Check for wide landscape (e.g., wider than 16:9)
+                     viewSize = d * 0.8; // Zoom in for wide desktop/landscape
+                 } else {
+                     viewSize = d; // Default view size for standard desktop aspect ratios
+                 }
             }
+
 
             camera.left = -viewSize * aspect;
             camera.right = viewSize * aspect;
