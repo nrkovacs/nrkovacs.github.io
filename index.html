@@ -1190,16 +1190,17 @@
                 } else if (aspect < 1) { // Portrait or square
                     viewSize = d * 0.8;
                 } else { // Landscape
-                    viewSize = d * 0.85; // Zoom in slightly for landscape mobile
+                    viewSize = d * 0.75; // Zoom in more for landscape mobile (was 0.85)
                 }
                  // else {
                  //    viewSize = d * 1.1;
                  // } // End mobile-specific adjustments
             } else { // Desktop or wider screens
                  if (aspect > 1.7) { // Check for wide landscape (e.g., wider than 16:9)
-                     viewSize = d * 0.8; // Zoom in for wide desktop/landscape
+                     viewSize = d * 0.7; // Zoom in more for wide desktop/landscape (was 0.8)
                  } else {
-                     viewSize = d; // Default view size for standard desktop aspect ratios
+                     // Also zoom in slightly for standard desktop landscape
+                     viewSize = d * 0.9; // Was d (1.0)
                  }
             }
 
